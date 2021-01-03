@@ -2,12 +2,28 @@
 
 # 所有账号共用的配置
 [common]
-# 自动赠送卡片的目标QQ数组，这些QQ必须是配置的账号之一，若配置则会在程序结束时尝试从其他小号赠送最需要的卡片给这些账号，若不配置则不启用。
-# 示例：["第一个账号的QQ号", "第二个账号的QQ号", "第三个账号的QQ号", "第n个账号的QQ号"]
+# 是否启用自动更新功能
+auto_update_on_start = true
+
+# 自动赠送卡片的目标QQ数组，这些QQ必须是配置的账号之一，若配置则会在程序结束时尝试从其他小号赠送卡片给这些账号，且这些账号不会赠送卡片给其他账号，若不配置则不启用。
+# 赠送策略为：如果该QQ仍有可兑换奖励，将赠送目标QQ最需要的卡片；否则将赠送目标QQ其他QQ最富余的卡片
+# 依次赠送给一到三个QQ的示例如下，更多赠送目标则类推
+#   想要其他账号赠送卡片给1个QQ 123456
+#   auto_send_card_target_qqs = ["123456"]
+#   想要其他账号赠送卡片给2个QQ 123456和654321
+#   auto_send_card_target_qqs = ["123456", "654321"]
+#   想要其他账号赠送卡片给3个QQ 123456和654321和111111
+#   auto_send_card_target_qqs = ["123456", "654321", "111111"]
 auto_send_card_target_qqs = []
 
 # 赛利亚活动拜访目标QQ列表
-# 示例：["第一个账号的QQ号", "第二个账号的QQ号", "第三个账号的QQ号", "第n个账号的QQ号"]
+# 依次拜访给一到三个QQ的示例如下，更多拜访目标则类推
+#   想要其他账号拜访1个QQ 123456
+#   sailiyam_visit_target_qqs = ["123456"]
+#   想要其他账号拜访2个QQ 123456和654321
+#   sailiyam_visit_target_qqs = ["123456", "654321"]
+#   想要其他账号拜访3个QQ 123456和654321和111111
+#   sailiyam_visit_target_qqs = ["123456", "654321", "111111"]
 sailiyam_visit_target_qqs = []
 
 # 心悦相关配置
@@ -22,6 +38,8 @@ enable = false
 # 固定队伍id，仅用于本地区分用
 id = "1"
 # 固定队成员，必须是三个，则必须都配置在本地的账号列表中了，否则将报错，不生效
+# 示例：小队成员为3个QQ 123456和654321和111111
+#   members = ["123456", "654321", "111111"]
 members = ["小队第一个账号的QQ号", "小队第二个账号的QQ号", "小队第三个账号的QQ号"]
 
 # 第二个固定队，更多的固定队则以此类推
@@ -30,7 +48,9 @@ members = ["小队第一个账号的QQ号", "小队第二个账号的QQ号", "�
 enable = false
 # 固定队伍id，仅用于本地区分用
 id = "2"
-# 固定队成员，必须是三个，否则将报错
+# 固定队成员，必须是三个，则必须都配置在本地的账号列表中了，否则将报错，不生效
+# 示例：小队成员为3个QQ 123456和654321和111111
+#   members = ["123456", "654321", "111111"]
 members = ["小队第一个账号的QQ号", "小队第二个账号的QQ号", "小队第三个账号的QQ号"]
 
 # ---------------------------第1个账号相关配置开始-----------------------------
@@ -39,7 +59,7 @@ members = ["小队第一个账号的QQ号", "小队第二个账号的QQ号", "�
 enable = true
 
 # 账号名称，仅用于区分不同账号
-name = "默认账号"
+name = "默认账号_不同账号请取不同名字"
 
 # 登录模式
 # by_hand：      手动登录，在skey无效的情况下会弹出活动界面，自行登录后将cookie中uin和skey提取到下面的配置处
@@ -48,12 +68,26 @@ name = "默认账号"
 login_mode = "qr_login"
 
 # 是否无法在道聚城绑定dnf，比如被封禁或者是朋友的QQ（主要用于小号，被风控不能注册dnf账号，但是不影响用来当抽卡等活动的工具人）
-cannot_band_dnf = false
+cannot_bind_dnf = false
 
-# 各功能开关
+# 各功能开关，true表示开启，false表示关闭
+# 示例如下：
+# 开启领取道聚城
+#   get_djc = true
+# 关闭领取道聚城
+#   get_djc = false
 [account_configs.function_switches]
+# ------------ 全局禁用开关 ------------
+# 是否禁用各种活动，供小号使用，这样新增的各种活动都将被禁用
+# 例外情况：道聚城、许愿、心悦特权专区、集卡这四个活动不受该配置项影响
+# 如果想要单独设置各个活动的开关，请不要设置这个配置项，否则各个新活动都会被禁用
+disable_most_activities = false
+
+# ------------ 普通skey（需要登录 炎炎夏日 活动页面 获取） ------------
 # 是否领取道聚城
 get_djc = true
+# 是否启用许愿功能，用于完成《有理想》。目前仅限安卓版本道聚城上绑定王者荣耀时可使用
+make_wish = true
 # 是否领取心悦特权专区
 get_xinyue = true
 # 是否领取腾讯游戏信用相关礼包
@@ -64,28 +98,44 @@ get_heizuan_gift = true
 get_xinyue_sailiyam = true
 # 是否领取wegame国庆活动
 get_wegame_guoqing = true
-# 是否领取阿拉德集合站活动
-get_dnf_922 = true
-# 是否领取2020DNF闪光杯返场赛活动
+# 是否领取史诗之路来袭活动合集活动
+get_dnf_1224 = true
+# 是否领取DNF闪光杯第三期活动
 get_dnf_shanguang = true
 # 是否领取qq视频活动
 get_qq_video = true
 # 是否领取10月女法师三觉活动
 get_dnf_female_mage_awaken = true
-# 是否领取管家蚊子腿活动
-get_guanjia = true
-# 是否启用许愿功能，用于完成《有理想》。目前仅限安卓版本道聚城上绑定王者荣耀时可使用
-make_wish = true
+# 是否领取DNF助手排行榜活动，额外需要助手userId和token
+get_dnf_rank = true
+# 是否领取dnf助手编年史活动，额外需要助手userId
+get_dnf_helper_chronicle = true
+# 是否启用hello语音奖励兑换功能，额外需要hello语音的用户ID
+get_hello_voice = true
+# 是否领取2020DNF嘉年华页面主页面签到活动
+get_dnf_carnival = true
+# 是否DNF共创投票
+get_dnf_dianzan = true
+# 是否领取DNF福利中心兑换
+get_dnf_welfare = true
+# 是否领取dnf漂流瓶
+get_dnf_drift = true
+# 是否领取DNF马杰洛的规划第二期
+get_majieluo = true
+# 是否领取dnf助手双旦活动
+get_dnf_helper_christmas = true
+# 是否领取暖冬好礼活动
+get_warm_winter = true
+
+# ------------ QQ空间pskey（需要登录 QQ空间 获取） ------------
 # 是否启用集卡功能
 get_ark_lottery = true
-# 是否领取DNF助手排行榜活动
-get_dnf_rank = true
 # 是否启用阿拉德勇士征集令活动
 get_dnf_warriors_call = true
-# 是否领取dnf助手编年史活动
-get_dnf_helper_chronicle = true
-# 是否启用hello语音奖励兑换功能
-get_hello_voice = true
+
+# ------------ 安全管家pskey（需要登录 安全管家 获取） ------------
+# 是否领取管家蚊子腿活动
+get_guanjia = true
 
 # 腾讯系网页登录通用账号凭据与token
 [account_configs.account_info]
@@ -163,6 +213,283 @@ count = 1
 #iFlowId = "513585"
 #sFlowName = "累计宝箱"
 #count = 1
+
+# 下面是可供兑换的道具，默认不开启，可根据需要自行取消注释来启用自动兑换
+## --------------- 荣耀战场-勇者宝库（成就点兑换） --------------------
+## ++++++++++特邀会员++++++++++++
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512484"
+#sFlowName = "特邀会员兑换心悦称号（最强战王称号）(需260成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512485"
+#sFlowName = "特邀会员兑换腾龙光环(需330成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512498"
+#sFlowName = "特邀会员兑换星空射手光环(需330成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "656611"
+#sFlowName = "特邀会员兑换星恋双鱼光环(需330成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512494"
+#sFlowName = "特邀会员兑换心悦宠物_牛小哞(需260成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512486"
+#sFlowName = "特邀会员兑换心悦宠物_羊小咩(需260成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "656648"
+#sFlowName = "特邀会员兑换心悦宠物_弓小弦(需260成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "656613"
+#sFlowName = "特邀会员兑换心悦宠物_甜小鱼(需280成就点)"
+#count = 1
+#
+#
+## ++++++++++心悦会员++++++++++++
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512487"
+#sFlowName = "心悦会员兑换心悦称号（1-最强战王/2-最强战皇/3-最强战神）(需220成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512488"
+#sFlowName = "心悦会员兑换腾龙光环(需280成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512497"
+#sFlowName = "心悦会员兑换星空射手光环(需280成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "656612"
+#sFlowName = "心悦会员兑换星恋双鱼光环(需280成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512495"
+#sFlowName = "心悦会员兑换心悦宠物_牛小哞(需220成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512489"
+#sFlowName = "心悦会员兑换心悦宠物_羊小咩(需220成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "656653"
+#sFlowName = "心悦会员兑换心悦宠物_弓小弦(需220成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "656614"
+#sFlowName = "心悦会员兑换心悦宠物_甜小鱼(需220成就点)"
+#count = 1
+#
+#
+## ++++++++++宝库兑换++++++++++++
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512473"
+#sFlowName = "复活币礼袋(日限10)(需8成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512474"
+#sFlowName = "[活动]时间引导石礼盒 (10个)(日限5)(需10成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512475"
+#sFlowName = "抗疲劳秘药50点（95lv以上，1天1次）(日限3)(需50成就点)"
+#count = 1
+#
+#
+## ++++++++++礼包兑换++++++++++++
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512469"
+#package_id = "702214"
+#sFlowName = "装备品级调整箱(需8点成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512469"
+#package_id = "702216"
+#sFlowName = "超级远古精灵秘药（持续30分钟）(需10点成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512469"
+#package_id = "702217"
+#sFlowName = "神秘契约礼袋（适用1日）(需20点成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512469"
+#package_id = "702218"
+#sFlowName = "装备提升礼盒(需10点成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512469"
+#package_id = "702220"
+#sFlowName = "华丽徽章随机礼盒(需20点成就点)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "512469"
+#package_id = "702222"
+#sFlowName = "升级券(Lv90-94)(月限1)(需50点成就点)"
+#count = 1
+#
+#
+#
+## --------------- 充值权益（勇士币兑换） --------------------
+## ++++++++++普通兑换专场（特邀会员以及心悦会员可兑换）++++++++++++
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513234"
+#sFlowName = "复活币*1(日限100)(需1点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513235"
+#sFlowName = "复活币*10(日限100)(需10点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513236"
+#sFlowName = "复活币*20(日限100)(需20点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "616809"
+#sFlowName = "[活动]时间引导石礼盒 (10个)(日限10)(需28点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513242"
+#sFlowName = "神秘契约礼袋（适用1日）(需10点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513251"
+#sFlowName = "装备提升礼盒(需30点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513244"
+#sFlowName = "抗疲劳秘药（95lv以上,5点,1天1次）(日限3)(需10点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513245"
+#sFlowName = "抗疲劳秘药（95lv以上,<br>10点,1天1次）(日限3)(需20点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513246"
+#sFlowName = "抗疲劳秘药（95lv以上,<br>20点,1天1次）(日限3)(需40点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513247"
+#sFlowName = "抗疲劳秘药（95lv以上,<br>50点,1天1次）(日限3)(需100点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513248"
+#sFlowName = "超级远古精灵秘药（持续30分钟）(需25点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513253"
+#sFlowName = "金库扩展券(需400点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513256"
+#sFlowName = "物品栏扩展券(需150点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513259"
+#sFlowName = "升级券（Lv90~94）(需100点勇士币)"
+#count = 1
+#
+#
+## ++++++++++心悦兑换专场（心悦会员可兑换）++++++++++++
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513263"
+#sFlowName = "霓裳仙子(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513274"
+#sFlowName = "塑身教练先生(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513275"
+#sFlowName = "金钱兔(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513276"
+#sFlowName = "蛇灵虹霜(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513277"
+#sFlowName = "迷你小公主(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513279"
+#sFlowName = "迷你艾利斯(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513281"
+#sFlowName = "迷你寒冰虎(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513285"
+#sFlowName = "亚米(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513286"
+#sFlowName = "枫树精灵希尔蒂(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513293"
+#sFlowName = "枫树精灵希尔夫(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513294"
+#sFlowName = "绿树精灵希尔蒂(需600点勇士币)"
+#count = 1
+#
+#[[account_configs.xinyue_operations]]
+#iFlowId = "513295"
+#sFlowName = "绿树精灵希尔夫(需600点勇士币)"
+#count = 1
+
 
 # ++++++++++每日任务++++++++++++
 # 下列默认尝试按照成就点数从高到低完成任务，可根据自己的游戏习惯进行调整
@@ -291,114 +618,28 @@ iFlowId = "512391"
 sFlowName = "游戏内PK1次（成就点=1）"
 count = 1
 
-# ++++++++++组队++++++++++++
-#[[account_configs.xinyue_operations]]
-#iFlowId = "513512"
-#sFlowName = "创建小队"
-#count = 1
-
-# ++++++++++兑换道具++++++++++++
-# 下面是可供兑换的道具，默认不开启，可根据需要自行取消注释来启用自动兑换
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512475"
-#sFlowName = "抗疲劳秘药50点（95lv以上，1天1次）（1个）(需50点)(日限3)"
-#count = 1
-#
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512474"
-#sFlowName = "时间引导石礼包 (10个)(需10点)(日限5)"
-#count = 1
-#
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512473"
-#sFlowName = "复活币礼袋兑换(需8点)(日限10)"
-#count = 1
-
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512469"
-#package_id = "702214"
-#sFlowName = "装备品级调整箱(需8点)"
-#count = 1
-#
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512469"
-#package_id = "702216"
-#sFlowName = "超级远古精灵秘药（持续30分钟）(需10点)"
-#count = 1
-#
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512469"
-#package_id = "702217"
-#sFlowName = "神秘契约礼袋（适用1日）(需20点)"
-#count = 1
-#
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512469"
-#package_id = "702218"
-#sFlowName = "装备提升礼盒(需10点)"
-#count = 1
-#
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512469"
-#package_id = "702220"
-#sFlowName = "华丽徽章随机礼盒(需20点)"
-#count = 1
-#
-#[[account_configs.xinyue_operations]]
-#iFlowId = "512469"
-#package_id = "702222"
-#sFlowName = "升级券(Lv90-94)(需50点)(月限1)"
-#count = 1
-
 # 抽卡相关配置
 [account_configs.ark_lottery]
 # 用于完成幸运勇士的区服ID和角色ID，若服务器ID留空，则使用道聚城绑定的dnf角色信息
-lucky_dnf_server_id = "" # 区服id可查阅reference_data/dnf_server_list.js
+lucky_dnf_server_id = "" # 区服id可查阅reference_data/dnf_server_list.js，具体值为每一个服务器配置中的v字段，如{t: "广东三区", v: "22"}表示广东三区的区服ID为"22"
 lucky_dnf_role_id = "" # 角色ID，不知道时可以填写区服ID，该数值留空，这样处理到抽卡的时候会用黄色字体打印出来信息
 
-# 是否消耗所有卡牌来抽奖（建议在兑换完所有礼包后再开启这个功能）
-cost_all_cards_and_do_lottery = false
+# 是否领取礼包（建议仅大号开启这个功能）
+need_take_awards = false
 
-# 尝试领取礼包的次数：勇士归来礼包=25947，超低门槛=25948，人人可玩=25966，幸运礼包=[依次执行 25963、25962、25939、25964、25965]
-#[[account_configs.ark_lottery.take_awards]]
-#name = "勇士归来礼包"
-#ruleid = 25947
-#count = 1
-#
-#[[account_configs.ark_lottery.take_awards]]
-#name = "超低门槛"
-#ruleid = 25948
-#count = 1
-#
-#[[account_configs.ark_lottery.take_awards]]
-#name = "人人可玩"
-#ruleid = 25966
-#count = 1
-#
-#[[account_configs.ark_lottery.take_awards]]
-#name = "幸运礼包-至尊礼包中间资格1"
-#ruleid = 25963
-#count = 1
-#
-#[[account_configs.ark_lottery.take_awards]]
-#name = "幸运礼包-至尊礼包中间资格2"
-#ruleid = 25962
-#count = 1
-#
-#[[account_configs.ark_lottery.take_awards]]
-#name = "幸运礼包-至尊礼包限制"
-#ruleid = 25939
-#count = 1
-#
-#[[account_configs.ark_lottery.take_awards]]
-#name = "幸运礼包-兑换至尊失败回滚后6张卡"
-#ruleid = 25964
-#count = 1
-#
-#[[account_configs.ark_lottery.take_awards]]
-#name = "幸运礼包-兑换至尊失败回滚前6张卡"
-#ruleid = 25965
-#count = 1
+# 活动ID => 是否消耗所有卡牌来抽奖（建议在兑换完所有礼包后再开启这个功能）
+# 如果不知道活动ID的话，可以不填，这样工具运行到本账号集卡时，会提示形如下列格式的信息。其中跟在【抽卡活动】字样后面括号里的数字就是当前集卡活动的ID
+#   尚未开启抽卡活动(4166)消耗所有卡片来抽奖的功能，建议所有礼包都兑换完成后开启该功能，从而充分利用卡片。
+# 示例：
+# 开启4166集卡的该功能：
+#   4166 = true
+# 关闭4166集卡的该功能：
+#   4166 = false
+[account_configs.ark_lottery.act_id_to_cost_all_cards_and_do_lottery]
+# 2020.09.22 征战希洛克集卡抽战灵天舞套！
+3886 = false
+# 2020.12.14 阿拉德勇士征集令
+4166 = false
 
 # wegame国庆活动兑换道具，具体道具的iFlowId和描述可参考reference_data/wegame国庆活动.json
 #[[account_configs.wegame_guoqing_exchange_items]]
@@ -444,9 +685,9 @@ cost_all_cards_and_do_lottery = false
 # dnf助手信息
 [account_configs.dnf_helper_info]
 # userId/nickName的获取方式为，点开dnf助手中点开右下角的【我的】，然后点击右上角的【编辑】按钮，则社区ID即为userId，昵称即为nickname，如我的这俩值为504051073、风之凌殇
-# 社区ID
+# 社区ID，形如 504051073
 userId = ""
-# 昵称
+# 昵称，形如 风之凌殇
 nickName = ""
 # 登录票据，目前需手动更新。
 # 流程：

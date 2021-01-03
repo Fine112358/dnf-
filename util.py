@@ -1,5 +1,6 @@
 import threading
 import time
+import traceback
 
 import psutil
 import win32con
@@ -164,6 +165,38 @@ def is_first_run(key):
 
 def get_year():
     return get_now().strftime("%Y")
+
+
+def filter_unused_params(urlRendered):
+    originalUrl = urlRendered
+    try:
+        path = ""
+        if urlRendered.startswith("http"):
+            if '?' not in urlRendered:
+                return urlRendered
+
+            idx = urlRendered.index('?')
+            path, urlRendered = urlRendered[:idx], urlRendered[idx + 1:]
+
+        parts = urlRendered.split('&')
+
+        validParts = []
+        for part in parts:
+            if part == "":
+                continue
+            k, v = part.split('=')
+            if v != "":
+                validParts.append(part)
+
+        newUrl = '&'.join(validParts)
+        if path != "":
+            newUrl = path + "?" + newUrl
+
+        return newUrl
+    except Exception as e:
+        logger.error("过滤参数出错了，urlRendered={}".format(originalUrl), exc_info=e)
+        logger.error("看到上面这个报错，请帮忙截图发反馈群里~ 调用堆栈=\n{}".format(color("bold_black") + ''.join(traceback.format_stack())))
+        return originalUrl
 
 
 if __name__ == '__main__':

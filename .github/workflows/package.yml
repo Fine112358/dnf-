@@ -5,6 +5,7 @@ on:
     # Sequence of patterns matched against refs/tags
     tags:
       - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+  workflow_dispatch:
 
 jobs:
   build:
@@ -32,14 +33,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install Color log
+      - name: Install Requirements
         run: |
-          # for visiablity, build and package use log.py, which need colorlog
-          pip install colorlog
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt wheel pyinstaller
 
-      - name: Install Requirements & Build
+      - name: Build
         run: |
-          python _build.py
+          python _build.py --disable_douban
+
+      - name: Clear Old Artifact
+        run: |
+          python _clear_github_artifact.py
 
       - name: Package
         run: |
@@ -57,7 +62,6 @@ jobs:
           prerelease: false
 
       - name: Upload Release Asset
-        id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

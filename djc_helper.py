@@ -1,3 +1,5 @@
+import calendar
+import math
 import platform
 import random
 import string
@@ -14,6 +16,7 @@ from game_info import get_game_info, get_game_info_by_bizcode
 from network import *
 from qq_login import QQLogin, LoginResult
 from qzone_activity import QzoneActivity
+from setting import *
 from sign import getMillSecondsUnix
 from urls import Urls
 from util import show_head_line, get_this_week_monday
@@ -36,6 +39,8 @@ class DjcHelper:
     def __init__(self, account_config, common_config):
         self.cfg = account_config  # type: AccountConfig
         self.common_cfg = common_config  # type: CommonConfig
+
+        self.zzconfig = zzconfig()
 
         # 配置加载后，尝试读取本地缓存的skey
         self.local_load_uin_skey()
@@ -253,8 +258,7 @@ class DjcHelper:
         res = self.get("获取道聚城各游戏的绑定角色列表", self.urls.query_bind_role_list, print_res=False)
         self.bizcode_2_bind_role_map = {}
         for roleinfo_dict in res["data"]:
-            role_info = GameRoleInfo()
-            role_info.auto_update_config(roleinfo_dict)
+            role_info = GameRoleInfo().auto_update_config(roleinfo_dict)
             self.bizcode_2_bind_role_map[role_info.sBizCode] = role_info
 
     def get_mobile_game_info(self):
@@ -297,7 +301,7 @@ class DjcHelper:
         binded = True
         if self.cfg.function_switches.get_djc:
             # 检查道聚城是否已绑定dnf角色信息，若未绑定则警告（这里不停止运行是因为可以不配置领取dnf的道具）
-            if not self.cfg.cannot_band_dnf and "dnf" not in self.bizcode_2_bind_role_map:
+            if not self.cfg.cannot_bind_dnf and "dnf" not in self.bizcode_2_bind_role_map:
                 logger.warning(color("fg_bold_yellow") + "未在道聚城绑定【地下城与勇士】的角色信息，请前往道聚城app进行绑定")
                 binded = False
 
@@ -305,19 +309,22 @@ class DjcHelper:
                 binded = False
 
         if binded:
-            # 打印dnf和手游的绑定角色信息
-            logger.info("已获取道聚城目前绑定的角色信息如下")
-            games = []
-            if "dnf" in self.bizcode_2_bind_role_map:
-                games.append("dnf")
-            if self.cfg.mobile_game_role_info.enabled():
-                games.append(self.get_mobile_game_info().bizCode)
+            if self.cfg.function_switches.get_djc:
+                # 打印dnf和手游的绑定角色信息
+                logger.info("已获取道聚城目前绑定的角色信息如下")
+                games = []
+                if "dnf" in self.bizcode_2_bind_role_map:
+                    games.append("dnf")
+                if self.cfg.mobile_game_role_info.enabled():
+                    games.append(self.get_mobile_game_info().bizCode)
 
-            for bizcode in games:
-                roleinfo = self.bizcode_2_bind_role_map[bizcode].sRoleInfo
-                logger.info("{game}: ({server}-{name}-{id})".format(
-                    game=roleinfo.gameName, server=roleinfo.serviceName, name=roleinfo.roleName, id=roleinfo.roleCode,
-                ))
+                for bizcode in games:
+                    roleinfo = self.bizcode_2_bind_role_map[bizcode].sRoleInfo
+                    logger.info("{game}: ({server}-{name}-{id})".format(
+                        game=roleinfo.gameName, server=roleinfo.serviceName, name=roleinfo.roleName, id=roleinfo.roleCode,
+                    ))
+            else:
+                logger.warning("当前账号未启用道聚城相关功能")
 
         return binded
 
@@ -365,6 +372,56 @@ class DjcHelper:
         # 腾讯游戏信用相关礼包
         self.get_credit_xinyue_gift()
 
+        # QQ空间抽卡
+        self.ark_lottery()
+
+        # 心悦app理财礼卡
+        self.xinyue_financing()
+
+        # DNF共创投票
+        self.dnf_dianzan()
+
+        # dnf漂流瓶
+        self.dnf_drift()
+
+        # DNF马杰洛的规划第二期
+        self.majieluo()
+
+        # dnf助手双旦活动
+        self.dnf_helper_christmas()
+
+        # 暖冬好礼活动
+        self.warm_winter()
+
+        # DNF闪光杯第三期
+        self.dnf_shanguang()
+
+        # 管家蚊子腿
+        self.guanjia()
+
+        # 史诗之路来袭活动合集
+        self.dnf_1224()
+
+        # qq视频活动
+        self.qq_video()
+
+    # -- 已过期的一些活动
+    def expired_activities(self):
+        # wegame国庆活动【秋风送爽关怀常伴】
+        self.wegame_guoqing()
+
+        # 微信签到
+        self.wx_checkin()
+
+        # 10月女法师三觉
+        self.dnf_female_mage_awaken()
+
+        # dnf助手排行榜
+        self.dnf_rank()
+
+        # 2020DNF嘉年华页面主页面签到
+        self.dnf_carnival()
+
         # DNF进击吧赛利亚
         self.xinyue_sailiyam()
 
@@ -377,34 +434,8 @@ class DjcHelper:
         # hello语音网页礼包兑换
         self.hello_voice()
 
-    # -- 已过期的一些活动
-    def expired_activities(self):
-        # wegame国庆活动【秋风送爽关怀常伴】
-        self.wegame_guoqing()
-
-        # 阿拉德集合站活动合集
-        self.dnf_922()
-
-        # QQ空间抽卡
-        self.ark_lottery()
-
-        # 2020DNF闪光杯返场赛
-        self.dnf_shanguang()
-
-        # 管家蚊子腿
-        self.guanjia()
-
-        # 微信签到
-        self.wx_checkin()
-
-        # 10月女法师三觉
-        self.dnf_female_mage_awaken()
-
-        # qq视频活动
-        self.qq_video()
-
-        # dnf助手排行榜
-        self.dnf_rank()
+        # DNF福利中心兑换
+        self.dnf_welfare()
 
     # --------------------------------------------道聚城--------------------------------------------
     def djc_operations(self):
@@ -496,7 +527,7 @@ class DjcHelper:
         self.get("3.2 一键领取{}日常礼包-{}".format(role_info.gameName, giftInfo.sTask), self.urls.receive_game_gift,
                  bizcode=game_info.bizCode, iruleId=giftInfo.iRuleId,
                  systemID=role_info.systemID, sPartition=role_info.areaID, channelID=role_info.channelID, channelKey=role_info.channelKey,
-                 roleCode=role_info.roleCode, sRoleName=role_info.roleName)
+                 roleCode=role_info.roleCode, sRoleName=quote_plus(role_info.roleName))
 
     def make_wish(self):
         bizCode = "yxzj"
@@ -515,8 +546,7 @@ class DjcHelper:
             logger.warning("在{}上游戏【{}】暂不支持许愿，query_wish_item_list_res={}".format(roleModel.systemKey, roleModel.gameName, query_wish_item_list_res))
             return
 
-        propModel = GoodsInfo()
-        propModel.auto_update_config(query_wish_item_list_res["data"]["goods"][0])
+        propModel = GoodsInfo().auto_update_config(query_wish_item_list_res["data"]["goods"][0])
 
         # 查询许愿列表
         wish_list_res = self.get("3.3.1 查询许愿列表", self.urls.query_wish, appUid=uin2qq(self.cfg.account_info.uin))
@@ -630,7 +660,7 @@ class DjcHelper:
 
     def exchange_item(self, ctx, iGoodsSeqId):
         roleinfo = self.bizcode_2_bind_role_map["dnf"].sRoleInfo
-        return self.get(ctx, self.urls.exchangeItems, iGoodsSeqId=iGoodsSeqId, rolename=roleinfo.roleName, lRoleId=roleinfo.roleCode, iZone=roleinfo.serviceID)
+        return self.get(ctx, self.urls.exchangeItems, iGoodsSeqId=iGoodsSeqId, rolename=quote_plus(roleinfo.roleName), lRoleId=roleinfo.roleCode, iZone=roleinfo.serviceID)
 
     def query_all_extra_info(self, dnfServerId):
         """
@@ -1020,7 +1050,7 @@ class DjcHelper:
             self.xinyue_sailiyam_op("拜访好友-{}".format(dzid), "714307", dzid=dzid)
             sleep_to_avoid_ban()
 
-        if not self.cfg.function_switches.get_xinyue_sailiyam:
+        if not self.cfg.function_switches.get_xinyue_sailiyam or self.disable_most_activities():
             logger.warning("未启用领取DNF进击吧赛利亚活动功能，将跳过")
             return
 
@@ -1032,10 +1062,7 @@ class DjcHelper:
         self.xinyue_sailiyam_op("领取蛋糕", "714230")
         self.xinyue_sailiyam_op("投喂蛋糕", "714251")
 
-        # ps：打工在运行结束的时候统一处理，这样可以确保处理好各个其他账号的拜访，从而有足够的心情值进行打工
-        self.show_xinyue_sailiyam_work_log()
-        self.xinyue_sailiyam_op("领取工资", "714229", iPackageId=self.get_xinyue_sailiyam_package_id())
-        self.xinyue_sailiyam_op("全勤奖", "715724")
+        logger.info("ps：打工在运行结束的时候统一处理，这样可以确保处理好各个其他账号的拜访，从而有足够的心情值进行打工")
 
     def get_xinyue_sailiyam_package_id(self):
         res = self.xinyue_sailiyam_op("打工显示", "715378", print_res=False)
@@ -1047,8 +1074,7 @@ class DjcHelper:
     def get_xinyue_sailiyam_workinfo(self):
         res = self.xinyue_sailiyam_op("打工显示", "715378", print_res=False)
         try:
-            workinfo = SailiyamWorkInfo()
-            workinfo.auto_update_config(res["modRet"]["jData"]["roleinfor"])
+            workinfo = SailiyamWorkInfo().auto_update_config(res["modRet"]["jData"]["roleinfor"])
 
             work_message = ""
 
@@ -1066,14 +1092,14 @@ class DjcHelper:
                 work_message += "赛利亚尚未出门工作"
 
             return work_message
-        except:
+        except Exception as e:
+            logger.error("获取打工信息出错了", exc_info=e)
             return ""
 
     def get_xinyue_sailiyam_status(self):
         res = self.xinyue_sailiyam_op("查询状态", "714738", print_res=False)
         try:
-            modRet = AmesvrCommonModRet()
-            modRet.auto_update_config(res["modRet"])
+            modRet = AmesvrCommonModRet().auto_update_config(res["modRet"])
             lingqudangao, touwei, _, baifang = modRet.sOutValue1.split('|')
             dangao = modRet.sOutValue2
             xinqingzhi = modRet.sOutValue3
@@ -1110,10 +1136,7 @@ class DjcHelper:
         res = self.xinyue_sailiyam_op("领取蛋糕", "714230", print_res=True)
         # {"ret": "99998", "msg": "请刷新页面，先绑定大区！谢谢！", "flowRet": {"iRet": "99998", "sLogSerialNum": "AMS-TGCLUB-1118215502-6NOW8h-339263-714230", "iAlertSerial": "0", "sMsg": "请刷新页面，先绑定大区！谢谢！"}}
         if int(res["ret"]) == 99998:
-            webbrowser.open("https://xinyue.qq.com/act/a20201023sailiya/index.html")
-            msg = "未绑定角色，请前往DNF进击吧赛利亚活动界面进行绑定，然后重新运行程序\n若无需该功能，可前往配置文件自行关闭该功能"
-            win32api.MessageBox(0, msg, "提示", win32con.MB_ICONWARNING)
-            exit(-1)
+            self.guide_to_bind_account("DNF进击吧赛利亚", "https://xinyue.qq.com/act/a20201023sailiya/index.html")
 
     def xinyue_sailiyam_op(self, ctx, iFlowId, dzid="", iPackageId="", print_res=True):
         iActivityId = self.urls.iActivityId_xinyue_sailiyam
@@ -1127,23 +1150,22 @@ class DjcHelper:
         # https://dnf.qq.com/act/blackDiamond/gift.shtml
         show_head_line("黑钻礼包")
 
-        if not self.cfg.function_switches.get_heizuan_gift:
+        if not self.cfg.function_switches.get_heizuan_gift or self.disable_most_activities():
             logger.warning("未启用领取每月黑钻等级礼包功能，将跳过")
             return
 
         res = self.get("领取每月黑钻等级礼包", self.urls.heizuan_gift)
         # 如果未绑定大区，提示前往绑定 "iRet": -50014, "sMsg": "抱歉，请先绑定大区后再试！"
         if res["iRet"] == -50014:
-            msg = "领取每月黑钻等级礼包失败，请先前往黑钻页面绑定角色信息\n若无需该功能，可前往配置文件自行关闭该功能"
-            win32api.MessageBox(0, msg, "提示", win32con.MB_ICONWARNING)
-            webbrowser.open("https://dnf.qq.com/act/blackDiamond/gift.shtml")
+            self.guide_to_bind_account("每月黑钻等级礼包", "https://dnf.qq.com/act/blackDiamond/gift.shtml")
+
         return res
 
     # --------------------------------------------信用礼包--------------------------------------------
     def get_credit_xinyue_gift(self):
         show_head_line("腾讯游戏信用相关礼包")
 
-        if not self.cfg.function_switches.get_credit_xinyue_gift:
+        if not self.cfg.function_switches.get_credit_xinyue_gift or self.disable_most_activities():
             logger.warning("未启用领取腾讯游戏信用相关礼包功能，将跳过")
             return
 
@@ -1159,8 +1181,21 @@ class DjcHelper:
 
     # --------------------------------------------QQ空间抽卡--------------------------------------------
     def ark_lottery(self):
-        # https://act.qzone.qq.com/vip/2019/xcardv3?zz=4&verifyid=qqvipdnf9
-        show_head_line("QQ空间抽卡")
+        # note: 启用和废弃抽卡活动的流程如下
+        #   1. 启用
+        #   1.1 获取新配置   手机登录抽卡活动页面，然后抓包获得页面代码，从中搜索【window.syncData】找到逻辑数据和配置，将其值复制到【setting/ark_lottery.py】中，作为setting变量的值
+        #   1.2 填写新链接   在urls.py中，替换self.ark_lottery_page的值为新版抽卡活动的链接（理论上应该只有zz和verifyid参数的值会变动，而且大概率是+1）
+        #   1.3 重新启用代码
+        #   1.3.1 在djc_helper.py中将ark_lottery的调用处从expired_activities移到normal_run
+        #   1.3.2 在main.py中将main函数中取消注释show_lottery_status和auto_send_cards的调用处
+        #
+        # hack:
+        #   2. 废弃
+        #   2.1 在djc_helper.py中将ark_lottery的调用处从normal_run移到expired_activities
+        #   2.2 在main.py中将main函数中注释show_lottery_status和auto_send_cards的调用处
+
+        # https://act.qzone.qq.com/vip/2019/xcardv3?zz=5&verifyid=qqvipdnf10
+        show_head_line("QQ空间抽卡 - {}_{}".format(self.zzconfig.actid, self.zzconfig.actName))
 
         if not self.cfg.function_switches.get_ark_lottery:
             logger.warning("未启用领取QQ空间抽卡功能，将跳过")
@@ -1173,9 +1208,35 @@ class DjcHelper:
         qa = QzoneActivity(self, lr)
         qa.ark_lottery()
 
+    def ark_lottery_query_left_times(self, to_qq):
+        ctx = "查询 {} 的剩余被赠送次数".format(to_qq)
+        res = self.get(ctx, self.urls.ark_lottery_query_left_times, to_qq=to_qq, actName=self.zzconfig.actName, print_res=False)
+        # # {"13320":{"data":{"uAccuPoint":4,"uPoint":3},"ret":0,"msg":"成功"},"ecode":0,"ts":1607934735801}
+        if res['13320']['ret'] != 0:
+            return 0
+        return res['13320']['data']['uPoint']
+
+    def send_card(self, card_name, cardId, to_qq, print_res=False):
+        from_qq = uin2qq(self.cfg.account_info.uin)
+
+        ctx = "{} 赠送卡片 {}({}) 给 {}".format(from_qq, card_name, cardId, to_qq)
+        self.get(ctx, self.urls.ark_lottery_send_card, cardId=cardId, from_qq=from_qq, to_qq=to_qq, actName=self.zzconfig.actName, print_res=print_res)
+        # # {"13333":{"data":{},"ret":0,"msg":"成功"},"ecode":0,"ts":1607934736057}
+
+    def send_card_by_name(self, card_name, to_qq):
+        card_info_map = parse_card_group_info_map(self.zzconfig)
+        self.send_card(card_name, card_info_map[card_name].id, to_qq, print_res=True)
+
     def fetch_pskey(self):
         # 如果未启用qq空间相关的功能，则不需要这个
-        if not self.cfg.function_switches.get_ark_lottery and not self.cfg.function_switches.get_dnf_warriors_call:
+        any_enabled = False
+        for activity_enabled in [
+            self.cfg.function_switches.get_ark_lottery,
+            # self.cfg.function_switches.get_dnf_warriors_call and not self.disable_most_activities(),
+        ]:
+            if activity_enabled:
+                any_enabled = True
+        if not any_enabled:
             logger.warning("未启用领取QQ空间相关的功能，将跳过")
             return
 
@@ -1245,33 +1306,12 @@ class DjcHelper:
     def get_local_saved_pskey_file(self):
         return self.local_saved_pskey_file.format(self.cfg.name)
 
-    def ark_lottery_query_left_times(self, to_qq):
-        ctx = "查询 {} 的剩余被赠送次数".format(to_qq)
-        res = self.get(ctx, self.urls.ark_lottery_query_left_times, to_qq=to_qq, print_res=False)
-        if res['13320']['ret'] != 0:
-            return 0
-        return res['13320']['data']['uPoint']
-
-    def send_card(self, cardId, to_qq):
-        from_qq = uin2qq(self.cfg.account_info.uin)
-
-        ctx = "{} 赠送卡片 {} 给 {}".format(from_qq, cardId, to_qq)
-        self.get(ctx, self.urls.ark_lottery_send_card, cardId=cardId, from_qq=from_qq, to_qq=to_qq, print_res=False)
-
-    def send_card_by_name(self, card_name, to_qq):
-        card_name_to_id = {
-            "多人配合新挑战": "116193", "丰富机制闯难关": "116192", "新剧情视听盛宴": "116191", "单人成团战不停": "116190",
-            "回归奖励大升级": "116189", "秒升Lv96刷深渊": "116188", "灿烂自选回归领": "116187", "告别酱油变大佬": "116186",
-            "单人爽刷新玩法": "116185", "独立成团打副本": "116184", "海量福利金秋享": "116183", "超强奖励等你拿": "116182",
-        }
-        self.send_card(card_name_to_id[card_name], to_qq)
-
     # --------------------------------------------阿拉德勇士征集令--------------------------------------------
     def dnf_warriors_call(self):
         # https://act.qzone.qq.com/vip/2020/dnf1126
         show_head_line("阿拉德勇士征集令")
 
-        if not self.cfg.function_switches.get_dnf_warriors_call:
+        if not self.cfg.function_switches.get_dnf_warriors_call or self.disable_most_activities():
             logger.warning("未启用领取阿拉德勇士征集令功能，将跳过")
             return
 
@@ -1292,7 +1332,7 @@ class DjcHelper:
         # https://dnf.qq.com/lbact/a20200922wegame/index.html
         show_head_line("wegame国庆活动【秋风送爽关怀常伴】")
 
-        if not self.cfg.function_switches.get_wegame_guoqing:
+        if not self.cfg.function_switches.get_wegame_guoqing or self.disable_most_activities():
             logger.warning("未启用领取wegame国庆活动功能，将跳过")
             return
 
@@ -1358,136 +1398,146 @@ class DjcHelper:
         res = self.wegame_op("金秋有礼抽奖", "703512", print_res=False)
         # {"ret": "99998", "msg": "请刷新页面，先绑定大区！谢谢！", "flowRet": {"iRet": "99998", "sLogSerialNum": "AMS-DNF-0924120415-8k2lUH-331515-703512", "iAlertSerial": "0", "sMsg": "请刷新页面，先绑定大区！谢谢！"}}
         if int(res["ret"]) == 99998:
-            webbrowser.open("https://dnf.qq.com/lbact/a20200922wegame/index.html")
-            msg = "未绑定角色，请前往wegame国庆活动界面进行绑定，然后重新运行程序\n若无需该功能，可前往配置文件自行关闭该功能"
-            win32api.MessageBox(0, msg, "提示", win32con.MB_ICONWARNING)
-            exit(-1)
+            self.guide_to_bind_account("wegame国庆", "https://dnf.qq.com/lbact/a20200922wegame/index.html")
 
     def wegame_op(self, ctx, iFlowId, print_res=True):
         iActivityId = self.urls.iActivityId_wegame_guoqing
 
         return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/lbact/a20200922wegame/")
 
-    # --------------------------------------------阿拉德集合站活动合集--------------------------------------------
-    def dnf_922(self):
-        # https://dnf.qq.com/lbact/a20200922hdjh/index.html
-        show_head_line("阿拉德集合站活动合集")
+    # --------------------------------------------史诗之路来袭活动合集--------------------------------------------
+    def dnf_1224(self):
+        # https://dnf.qq.com/lbact/a20201224aggregate/index.html
+        show_head_line("史诗之路来袭活动合集")
 
-        if not self.cfg.function_switches.get_dnf_922:
-            logger.warning("未启用领取阿拉德集合站活动合集功能，将跳过")
+        if not self.cfg.function_switches.get_dnf_1224 or self.disable_most_activities():
+            logger.warning("未启用领取史诗之路来袭活动合集功能，将跳过")
             return
 
-        self.check_dnf_922()
+        self.check_dnf_1224()
 
-        self.dnf_922_op("勇士礼包", "703172")
+        self.dnf_1224_op("勇士礼包", "730665")
 
-        self.dnf_922_op("30分签到礼包", "703173")
-        check_days = self.get_dnf_922_checkin_days()
+        self.dnf_1224_op("30分签到礼包", "730666")
+        check_days = self.get_dnf_1224_checkin_days()
         logger.info(color("fg_bold_cyan") + "当前已累积签到 {} 天".format(check_days))
-        self.dnf_922_op("3日礼包", "703168")
-        self.dnf_922_op("7日礼包", "703174")
-        self.dnf_922_op("15日礼包", "703175")
+        self.dnf_1224_op("3日礼包", "730663")
+        self.dnf_1224_op("7日礼包", "730667")
+        self.dnf_1224_op("15日礼包", "730668")
 
-    def get_dnf_922_checkin_days(self):
-        res = self.dnf_922_op("查询签到信息", "703177")
-        return res["modRet"]["total"]
+    def get_dnf_1224_checkin_days(self):
+        res = self.dnf_1224_op("查询签到信息", "730670")
+        return int(res["modRet"]["total"])
 
-    def check_dnf_922(self):
-        res = self.dnf_922_op("30分签到礼包", "703173", print_res=False)
-        # {"ret": "99998", "msg": "请刷新页面，先绑定大区！谢谢！", "flowRet": {"iRet": "99998", "sLogSerialNum": "AMS-DNF-0924120415-8k2lUH-331515-703512", "iAlertSerial": "0", "sMsg": "请刷新页面，先绑定大区！谢谢！"}}
-        if int(res["ret"]) == 99998:
-            webbrowser.open("https://dnf.qq.com/lbact/a20200922hdjh/index.html")
-            msg = "未绑定角色，请前往阿拉德集合站活动界面进行绑定，然后重新运行程序\n若无需该功能，可前往配置文件自行关闭该功能"
-            win32api.MessageBox(0, msg, "提示", win32con.MB_ICONWARNING)
-            exit(-1)
+    def check_dnf_1224(self):
+        res = self.dnf_1224_op("查询是否绑定", "730660", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        if len(res["modRet"]["jData"]) == 0:
+            self.guide_to_bind_account("史诗之路来袭活动合集", "https://dnf.qq.com/lbact/a20201224aggregate/index.html")
 
-    def dnf_922_op(self, ctx, iFlowId, print_res=True):
-        iActivityId = self.urls.iActivityId_dnf_922
-        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/lbact/a20200922hdjh/")
+    def dnf_1224_op(self, ctx, iFlowId, print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_1224
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/lbact/a20201224aggregate/")
 
-    # --------------------------------------------2020DNF闪光杯返场赛--------------------------------------------
+    # --------------------------------------------DNF闪光杯第三期--------------------------------------------
     def dnf_shanguang(self):
-        # https://xinyue.qq.com/act/a20200907sgbpc/index.html
-        show_head_line("2020DNF闪光杯返场赛")
+        # http://xinyue.qq.com/act/a20201221sgbpc/index.html
+        show_head_line("DNF闪光杯第三期")
 
-        if not self.cfg.function_switches.get_dnf_shanguang:
-            logger.warning("未启用领取2020DNF闪光杯返场赛活动合集功能，将跳过")
+        if not self.cfg.function_switches.get_dnf_shanguang or self.disable_most_activities():
+            logger.warning("未启用领取DNF闪光杯第三期活动合集功能，将跳过")
             return
 
         self.check_dnf_shanguang()
 
-        # self.dnf_shanguang_op("报名礼", "698607")
-        # self.dnf_shanguang_op("app专属礼", "698910")
+        # self.dnf_shanguang_op("报名礼", "724862")
+        # self.dnf_shanguang_op("app专属礼", "724877")
         logger.warning(color("fg_bold_cyan") + "不要忘记前往网页手动报名并领取报名礼以及前往app领取一次性礼包")
 
-        self.dnf_shanguang_op("周周闪光好礼", "698913")
+        logger.warning(color("bold_yellow") + "本周已获得指定装备{}件，具体装备可去活动页面查看".format(self.query_dnf_shanguang_equip_count()))
+
+        self.dnf_shanguang_op("周周闪光好礼", "724878")
 
         for i in range(6):
-            res = self.dnf_shanguang_op("周周开大奖", "698914")
-            # 1326109: 开奖次数已用完
-            # 1326106: 很遗憾，你没有获得本次开奖机会
-            # 1326105: 仅限每周三可以参与
-            if res["flowRet"].get("iCondNotMetId", "0") in ["1326109", "1326106", "1326105"]:
+            res = self.dnf_shanguang_op("周周开大奖", "724879")
+            if int(res["ret"]) != 0:
                 break
             time.sleep(5)
 
-        self.dnf_shanguang_op("每日登录游戏", "699136")
-        self.dnf_shanguang_op("每日登录app", "699137")
-        # self.dnf_shanguang_op("每日网吧登录", "699140")
+        self.dnf_shanguang_op("每日登录游戏", "724881")
+        self.dnf_shanguang_op("每日登录app", "724882")
+        # self.dnf_shanguang_op("每日网吧登录", "724883")
 
         lottery_times = self.get_dnf_shanguang_lottery_times()
         logger.info(color("fg_bold_cyan") + "当前剩余闪光夺宝次数为 {} ".format(lottery_times))
         for i in range(lottery_times):
-            self.dnf_shanguang_op("闪光夺宝", "698915")
+            self.dnf_shanguang_op("闪光夺宝", "724880")
             time.sleep(5)
 
     def get_dnf_shanguang_lottery_times(self):
-        res = self.dnf_shanguang_op("闪光夺宝次数", "699142")
+        res = self.dnf_shanguang_op("闪光夺宝次数", "724885")
         return int(res["modRet"]["sOutValue3"])
 
+    def query_dnf_shanguang_equip_count(self, print_warning=True):
+        res = self.dnf_shanguang_op("输出当前周期爆装信息", "724876", print_res=False)
+        equip_count = 0
+        if "modRet" in res:
+            info = AmesvrCommonModRet().auto_update_config(res["modRet"])
+            if info.sOutValue2 != "" and info.sOutValue2 != "0":
+                equip_count = len(info.sOutValue2.split(","))
+        else:
+            if print_warning: logger.warning(color("bold_yellow") + "是不是还没有报名？")
+
+        return equip_count
+
     def check_dnf_shanguang(self):
-        res = self.dnf_shanguang_op("报名礼", "698607", print_res=False)
+        res = self.dnf_shanguang_op("报名礼", "724862", print_res=False)
         # {"ret": "99998", "msg": "请刷新页面，先绑定大区！谢谢！", "flowRet": {"iRet": "99998", "sLogSerialNum": "AMS-DNF-0924120415-8k2lUH-331515-703512", "iAlertSerial": "0", "sMsg": "请刷新页面，先绑定大区！谢谢！"}}
         if int(res["ret"]) == 99998:
-            webbrowser.open("https://xinyue.qq.com/act/a20200907sgbpc/index.html")
-            msg = "未绑定角色，请前往2020DNF闪光杯返场赛活动界面进行绑定，然后重新运行程序\n若无需该功能，可前往配置文件自行关闭该功能"
-            win32api.MessageBox(0, msg, "提示", win32con.MB_ICONWARNING)
-            exit(-1)
+            self.guide_to_bind_account("DNF闪光杯第三期", "http://xinyue.qq.com/act/a20201221sgbpc/index.html")
 
     def dnf_shanguang_op(self, ctx, iFlowId, print_res=True):
         iActivityId = self.urls.iActivityId_dnf_shanguang
 
         weekDay = get_this_week_monday()
 
-        return self.amesvr_request(ctx, "act.game.qq.com", "xinyue", "tgclub", iActivityId, iFlowId, print_res, "http://xinyue.qq.com/act/a20200907sgbpc/",
+        return self.amesvr_request(ctx, "act.game.qq.com", "xinyue", "tgclub", iActivityId, iFlowId, print_res, "https://xinyue.qq.com/act/a20201221sgb",
                                    weekDay=weekDay,
                                    )
 
     # --------------------------------------------qq视频活动--------------------------------------------
     def qq_video(self):
-        # https://film.qq.com/film/p/topic/dnf922/index.html
+        # https://m.film.qq.com/magic-act/110254/index.html
         show_head_line("qq视频活动")
 
-        if not self.cfg.function_switches.get_qq_video:
+        if not self.cfg.function_switches.get_qq_video or self.disable_most_activities():
             logger.warning("未启用领取qq视频活动功能，将跳过")
             return
 
+        # note: 接入新活动的流程如下
+        #   1. 电脑打开fiddler，手机连接fiddler的代理
+        #   2. 手机QQ打开活动界面
+        #   3. 点击任意按钮，从query_string中获取最新的act_id
+        #   4. 依次点击下面各个行为对应的按钮，从query_string中获取最新的module_id
+
         self.check_qq_video()
 
-        self.qq_video_op("幸运勇士礼包", "125888")
-        self.qq_video_op("勇士见面礼-礼包", "125890")
-        self.qq_video_op("勇士见面礼-令牌", "125911")
+        self.qq_video_op("幸运勇士礼包", "129838")
+        self.qq_video_op("勇士见面礼-礼包", "129879")
+        self.qq_video_op("勇士见面礼-令牌", "129875")
 
-        self.qq_video_op("在线30分钟", "125905")
-        self.qq_video_op("累积3天", "125906")
-        self.qq_video_op("累积7天", "125908")
-        self.qq_video_op("累积15天", "125907")
+        self.qq_video_op("每日抽奖1次(需在活动页面开通QQ视频会员)", "129873")
+
+        self.qq_video_op("在线30分钟", "129877")
+        self.qq_video_op("累积3天", "129881")
+        self.qq_video_op("累积7天", "129883")
+        self.qq_video_op("累积15天", "129882")
 
     def check_qq_video(self):
-        res = self.qq_video_op("幸运勇士礼包", "125888", print_res=False)
+        res = self.qq_video_op("幸运勇士礼包", "129838", print_res=False)
         # {"frame_resp": {"failed_condition": {"condition_op": 3, "cur_value": 0, "data_type": 2, "exp_value": 0, "type": 100418}, "msg": "", "ret": 0, "security_verify": {"iRet": 0, "iUserType": 0, "sAppId": "", "sBusinessId": "", "sInnerMsg": "", "sUserMsg": ""}}, "act_id": 108810, "data": {"button_txt": "关闭", "cdkey": "", "custom_list": [], "end_timestamp": -1, "ext_url": "", "give_type": 0, "is_mask_cdkey": 0, "is_pop_jump": 0, "item_share_desc": "", "item_share_title": "", "item_share_url": "", "item_sponsor_title": "", "item_sponsor_url": "", "item_tips": "", "jump_url": "", "jump_url_web": "", "lottery_item_id": "1601827185657s2238078729s192396s1", "lottery_level": 0, "lottery_name": "", "lottery_num": 0, "lottery_result": 0, "lottery_txt": "您当前还未绑定游戏帐号，请先绑定哦~", "lottery_url": "", "lottery_url_ext": "", "lottery_url_ext1": "", "lottery_url_ext2": "", "msg_title": "告诉我怎么寄给你", "need_bind": 0, "next_type": 2, "pop_jump_btn_title": "", "pop_jump_url": "", "prize_give_info": {"prize_give_status": 0}, "property_detail_code": 0, "property_detail_msg": "", "property_type": 0, "share_txt": "", "share_url": "", "source": 0, "sys_code": -904, "url_lottery": "", "user_info": {"addr": "", "name": "", "tel": "", "uin": ""}}, "module_id": 125890, "msg": "", "ret": 0, "security_verify": {"iRet": 0, "iUserType": 0, "sAppId": "", "sBusinessId": "", "sInnerMsg": "", "sUserMsg": ""}}
         if int(res["data"]["sys_code"]) == -904 and res["data"]["lottery_txt"] == "您当前还未绑定游戏帐号，请先绑定哦~":
-            msg = "未绑定角色，请打开dnf助手->活动->前往【征战新团本，共享好时光】活动界面进行绑定，然后重新运行程序\n若无需该功能，可前往配置文件自行关闭该功能"
+            msg = "未绑定角色，请打开https://m.film.qq.com/magic-act/110254/index.html（需要使用手机打开）进行绑定，然后重新运行程序\n若无需该功能，可前往配置文件自行关闭该功能"
             logger.warning(color("fg_bold_cyan") + msg)
 
     def qq_video_op(self, ctx, module_id, print_res=True):
@@ -1502,13 +1552,14 @@ class DjcHelper:
         return res
 
     def _qq_video_op(self, ctx, type, option, module_id, print_res=True):
+        act_id = "110254"
         extra_cookies = "; ".join([
             "",
             "appid=3000501",
             "main_login=qq",
             "vuserid={vuserid}".format(vuserid=self.vuserid),
         ])
-        return self.get(ctx, self.urls.qq_video, type=type, option=option, act_id="108810", module_id=module_id,
+        return self.get(ctx, self.urls.qq_video, type=type, option=option, act_id=act_id, module_id=module_id,
                         print_res=print_res, extra_cookies=extra_cookies)
 
     # --------------------------------------------10月女法师三觉活动--------------------------------------------
@@ -1516,7 +1567,7 @@ class DjcHelper:
         # https://mwegame.qq.com/act/dnf/Mageawaken/index?subGameId=10014&gameId=10014&gameId=1006
         show_head_line("10月女法师三觉")
 
-        if not self.cfg.function_switches.get_dnf_female_mage_awaken:
+        if not self.cfg.function_switches.get_dnf_female_mage_awaken or self.disable_most_activities():
             logger.warning("未启用领取10月女法师三觉活动合集功能，将跳过")
             return
 
@@ -1571,7 +1622,7 @@ class DjcHelper:
                                   sArea=roleinfo.serviceID, serverId=roleinfo.serviceID,
                                   sRoleId=roleinfo.roleCode, sRoleName=quote_plus(roleinfo.roleName),
                                   uin=qq, skey=self.cfg.account_info.skey,
-                                  nickName=quote_plus(dnf_helper_info.nickName), userId=dnf_helper_info.userId, token=dnf_helper_info.token,
+                                  nickName=quote_plus(dnf_helper_info.nickName), userId=dnf_helper_info.userId, token=quote_plus(dnf_helper_info.token),
                                   )
 
         # 1000017016: 登录态失效,请重新登录
@@ -1610,7 +1661,7 @@ class DjcHelper:
         # https://mwegame.qq.com/dnf/rankv2/index.html
         show_head_line("dnf助手排行榜")
 
-        if not self.cfg.function_switches.get_dnf_rank:
+        if not self.cfg.function_switches.get_dnf_rank or self.disable_most_activities():
             logger.warning("未启用领取dnf助手排行榜活动合集功能，将跳过")
             return
 
@@ -1681,7 +1732,7 @@ class DjcHelper:
                                       sArea=roleinfo.serviceID, serverId=roleinfo.serviceID, areaId=roleinfo.serviceID,
                                       sRoleId=roleinfo.roleCode, sRoleName=quote_plus(roleinfo.roleName),
                                       uin=qq, skey=self.cfg.account_info.skey,
-                                      nickName=quote_plus(dnf_helper_info.nickName), userId=dnf_helper_info.userId, token=dnf_helper_info.token,
+                                      nickName=quote_plus(dnf_helper_info.nickName), userId=dnf_helper_info.userId, token=quote_plus(dnf_helper_info.token),
                                       )
         except Exception as e:
             logger.exception("dnf_rank_receive_diamond_amesvr出错了", exc_info=e)
@@ -1689,14 +1740,71 @@ class DjcHelper:
     def dnf_rank_op(self, ctx, url, **params):
         qq = uin2qq(self.cfg.account_info.uin)
         info = self.cfg.dnf_helper_info
-        return self.get(ctx, url, uin=qq, userId=info.userId, token=info.token, **params)
+        return self.get(ctx, url, uin=qq, userId=info.userId, token=quote_plus(info.token), **params)
+
+    # --------------------------------------------dnf助手双旦活动--------------------------------------------
+    def dnf_helper_christmas(self):
+        # https://mwegame.qq.com/act/dnf/christmas/index.html?subGameId=10014&gameId=10014&&gameId=1006
+        show_head_line("dnf助手双旦")
+
+        if not self.cfg.function_switches.get_dnf_helper_christmas or self.disable_most_activities():
+            logger.warning("未启用领取dnf助手双旦活动合集功能，将跳过")
+            return
+
+        # 检查是否已在道聚城绑定
+        if "dnf" not in self.bizcode_2_bind_role_map:
+            logger.warning("未在道聚城绑定dnf角色信息，将跳过本活动，请移除配置或前往绑定")
+            return
+
+        if self.cfg.dnf_helper_info.token == "":
+            logger.warning(color("fg_bold_yellow") + "未配置dnf助手相关信息，无法进行dnf助手双旦相关活动，请按照下列流程进行配置")
+            self.show_dnf_helper_info_guide()
+            return
+
+        self.dnf_helper_christmas_op("每日签到", "726989")
+
+        self.dnf_helper_christmas_op("圣诞节 12/25", "727621")
+        self.dnf_helper_christmas_op("元旦节 1/1", "727622")
+
+        self.dnf_helper_christmas_op("累计1次", "727623")
+        self.dnf_helper_christmas_op("累计3次", "727624")
+        self.dnf_helper_christmas_op("累计5次", "727625")
+        self.dnf_helper_christmas_op("累计7次", "727626")
+        self.dnf_helper_christmas_op("累计11次", "727627")
+        self.dnf_helper_christmas_op("累计14次", "727628")
+        self.dnf_helper_christmas_op("累计18次", "727629")
+        self.dnf_helper_christmas_op("累计21次", "727630")
+
+        self.dnf_helper_christmas_op("抽奖", "727631")
+        logger.info(color("bold_cyan") + "请自行前往助手活动页面填写身份信息，否则领取到实物奖励会无法发放（虽然应该没几个人会中实物奖<_<）")
+
+    def dnf_helper_christmas_op(self, ctx, iFlowId, print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_helper_christmas
+
+        roleinfo = self.bizcode_2_bind_role_map['dnf'].sRoleInfo
+        qq = uin2qq(self.cfg.account_info.uin)
+        dnf_helper_info = self.cfg.dnf_helper_info
+
+        res = self.amesvr_request(ctx, "comm.ams.game.qq.com", "group_k", "bb", iActivityId, iFlowId, print_res, "https://mwegame.qq.com/act/dnf/christmas/index.html",
+                                  sArea=roleinfo.serviceID, serverId=roleinfo.serviceID,
+                                  sRoleId=roleinfo.roleCode, sRoleName=quote_plus(roleinfo.roleName),
+                                  uin=qq, skey=self.cfg.account_info.skey,
+                                  nickName=quote_plus(dnf_helper_info.nickName), userId=dnf_helper_info.userId, token=quote_plus(dnf_helper_info.token),
+                                  )
+
+        # 1000017016: 登录态失效,请重新登录
+        if res["flowRet"]["iRet"] == "700" and res["flowRet"]["sMsg"] == "登录态失效,请重新登录":
+            logger.warning(color("fg_bold_yellow") + "dnf助手的登录态已过期，目前需要手动更新，具体操作流程如下")
+            self.show_dnf_helper_info_guide()
+
+        return res
 
     # --------------------------------------------dnf助手编年史活动--------------------------------------------
     def dnf_helper_chronicle(self):
         # dnf助手左侧栏
         show_head_line("dnf助手编年史")
 
-        if not self.cfg.function_switches.get_dnf_helper_chronicle:
+        if not self.cfg.function_switches.get_dnf_helper_chronicle or self.disable_most_activities():
             logger.warning("未启用领取dnf助手编年史活动功能，将跳过")
             return
 
@@ -1724,36 +1832,26 @@ class DjcHelper:
         # ------ 查询各种信息 ------
         def exchange_list():
             res = self.get("可兑换道具列表", url_wang, api="list/exchange", **common_params)
-            _res = DnfHelperChronicleExchangeList()
-            _res.auto_update_config(res)
-            return _res
+            return DnfHelperChronicleExchangeList().auto_update_config(res)
 
         def basic_award_list():
             res = self.get("基础奖励与搭档奖励", url_wang, api="list/basic", **common_params)
-            _res = DnfHelperChronicleBasicAwardList()
-            _res.auto_update_config(res)
-            return _res
+            return DnfHelperChronicleBasicAwardList().auto_update_config(res)
 
         def lottery_list():
             res = self.get("碎片抽奖奖励", url_wang, api="lottery/receive", **common_params)
-            _res = DnfHelperChronicleLotteryList()
-            _res.auto_update_config(res)
-            return _res
+            return DnfHelperChronicleLotteryList().auto_update_config(res)
 
         def getUserActivityTopInfo():
             res = self.post("活动基础状态信息", url_mwegame, "", api="getUserActivityTopInfo", **common_params)
-            _res = DnfHelperChronicleUserActivityTopInfo()
-            _res.auto_update_config(res.get("data", {}))
-            return _res
+            return DnfHelperChronicleUserActivityTopInfo().auto_update_config(res.get("data", {}))
 
         def _getUserTaskList():
             return self.post("任务信息", url_mwegame, "", api="getUserTaskList", **common_params)
 
         def getUserTaskList():
             res = _getUserTaskList()
-            _res = DnfHelperChronicleUserTaskList()
-            _res.auto_update_config(res.get("data", {}))
-            return _res
+            return DnfHelperChronicleUserTaskList().auto_update_config(res.get("data", {}))
 
         # ------ 领取各种奖励 ------
 
@@ -1883,10 +1981,10 @@ class DjcHelper:
 
     # --------------------------------------------管家蚊子腿--------------------------------------------
     def guanjia(self):
-        # https://guanjia.qq.com/act/cop/202010dnf/
+        # http://guanjia.qq.com/act/cop/202012dnf/
         show_head_line("管家蚊子腿")
 
-        if not self.cfg.function_switches.get_guanjia:
+        if not self.cfg.function_switches.get_guanjia or self.disable_most_activities():
             logger.warning("未启用领取管家蚊子腿活动合集功能，将跳过")
             return
 
@@ -1897,15 +1995,17 @@ class DjcHelper:
         # 等一会，避免报错
         time.sleep(self.common_cfg.retry.request_wait_time)
 
-        self.guanjia_op("下载礼包", "comjoin_1059", giftId="7094")
-        self.guanjia_op("连续签到两天礼包", "comjoin_1059", giftId="7095")
+        self.guanjia_common_gifts_op("电脑管家特权礼包", giftId="7546")
+        self.guanjia_common_gifts_op("游戏助手礼包", giftId="7547")
+        self.guanjia_common_gifts_op("回归勇士礼包", giftId="7548")
 
-        self.guanjia_op("回归勇士礼包", "comjoin_1059", giftId="7096")
-        self.guanjia_op("每日游戏在线30分钟", "comjoin_1059", giftId="7099")
-        self.guanjia_op("管家个人中心签到", "comjoin_1059", giftId="7098")
+        self.guanjia_common_gifts_op("下载安装并登录电脑管家", giftId="7549")
+
+        self.guanjia_common_gifts_op("每日游戏在线30分钟", giftId="7550")
+        self.guanjia_common_gifts_op("每日登录游戏助手", giftId="7551")
 
         for i in range(10):
-            res = self.guanjia_op("抽奖", "lottjoin_1058")
+            res = self.guanjia_lottery_gifts_op("抽奖")
             # {"code": 4101, "msg": "积分不够", "result": []}
             if res["code"] == 4101:
                 break
@@ -1920,10 +2020,17 @@ class DjcHelper:
 
         # {"code": 7005, "msg": "获取accToken失败", "result": []}
         # {"code": 29, "msg": "请求包参数错误", "result": []}
-        res = self.guanjia_op("管家个人中心签到", "comjoin_1059", giftId="7098", print_res=False)
+        res = self.guanjia_common_gifts_op("每日登录游戏助手", giftId="7551", print_res=False)
         return res["code"] in [7005, 29]
 
-    def guanjia_op(self, ctx, api, giftId="", print_res=True):
+    def guanjia_common_gifts_op(self, ctx, giftId="", print_res=True):
+        return self.guanjia_op(ctx, "comjoin", "1121", giftId=giftId, print_res=print_res)
+
+    def guanjia_lottery_gifts_op(self, ctx, print_res=True):
+        return self.guanjia_op(ctx, "lottjoin", "1120", print_res=print_res)
+
+    def guanjia_op(self, ctx, api_name, act_id, giftId="", print_res=True):
+        api = "{}_{}".format(api_name, act_id)
         roleinfo = self.bizcode_2_bind_role_map['dnf'].sRoleInfo
         extra_cookies = "__qc__openid={openid}; __qc__k={access_key};".format(
             openid=self.guanjia_lr.qc_openid,
@@ -1933,6 +2040,17 @@ class DjcHelper:
                         extra_cookies=extra_cookies, is_jsonp=True, is_normal_jsonp=True, print_res=print_res)
 
     def fetch_guanjia_openid(self, print_warning=True):
+        # 检查是否启用管家相关活动
+        any_enabled = False
+        for activity_enabled in [
+            self.cfg.function_switches.get_guanjia and not self.disable_most_activities(),
+        ]:
+            if activity_enabled:
+                any_enabled = True
+        if not any_enabled:
+            if print_warning: logger.warning("未启用管家相关活动，将跳过")
+            return
+
         # 检查是否已在道聚城绑定
         if "dnf" not in self.bizcode_2_bind_role_map:
             if print_warning: logger.warning("未在道聚城绑定dnf角色信息，将跳过本活动，请移除配置或前往绑定")
@@ -1995,7 +2113,7 @@ class DjcHelper:
         # https://dnf.qq.com/act/1192/f19665d784ac041d/index.html  （从hello语音app中兑换奖励页点开网页）
         show_head_line("hello语音奖励兑换功能（仅兑换，不包含获取奖励的逻辑）")
 
-        if not self.cfg.function_switches.get_guanjia:
+        if not self.cfg.function_switches.get_hello_voice or self.disable_most_activities():
             logger.warning("未启用hello语音奖励兑换功能，将跳过")
             return
 
@@ -2064,8 +2182,7 @@ class DjcHelper:
             return False
         else:
             # 已选择大区
-            roleInfo = HelloVoiceDnfRoleInfo()
-            roleInfo.auto_update_config(data["jData"])
+            roleInfo = HelloVoiceDnfRoleInfo().auto_update_config(data["jData"])
             logger.info("绑定角色信息: {}".format(roleInfo))
             return True
 
@@ -2074,9 +2191,8 @@ class DjcHelper:
 
     # --------------------------------------------微信签到--------------------------------------------
     def wx_checkin(self):
-        # fixme: 开发完成后移除这个
-        if not self.cfg.test_mode:
-            return
+        # 目前通过autojs实现
+        return
 
         show_head_line("微信签到--临时版本，仅本地使用")
 
@@ -2100,12 +2216,723 @@ class DjcHelper:
 
         self.get("微信签到信息", 'https://gw.gzh.qq.com/awp-signin/check?id=260', extra_cookies=wx_login_cookies)
 
-    # --------------------------------------------辅助函数--------------------------------------------
-    def get(self, ctx, url, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, extra_cookies="", **params):
-        return self.network.get(ctx, self.format(url, **params), pretty, print_res, is_jsonp, is_normal_jsonp, extra_cookies)
+    # --------------------------------------------2020DNF嘉年华页面主页面签到--------------------------------------------
+    def dnf_carnival(self):
+        # https://dnf.qq.com/cp/a20201203carnival/index.html
+        show_head_line("2020DNF嘉年华页面主页面签到")
 
-    def post(self, ctx, url, data, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, extra_cookies="", **params):
-        return self.network.post(ctx, self.format(url, **params), data, pretty, print_res, is_jsonp, is_normal_jsonp, extra_cookies)
+        if not self.cfg.function_switches.get_dnf_carnival or self.disable_most_activities():
+            logger.warning("未启用领取2020DNF嘉年华页面主页面签到活动合集功能，将跳过")
+            return
+
+        self.check_dnf_carnival()
+
+        self.dnf_carnival_op("12.11-12.14 阶段一签到", "721945")
+        self.dnf_carnival_op("12.15-12.18 阶段二签到", "722198")
+        self.dnf_carnival_op("12.19-12.26 阶段三与全勤", "722199")
+
+    def check_dnf_carnival(self):
+        res = self.dnf_carnival_op("查询是否绑定", "722055", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        if len(res["modRet"]["jData"]) == 0:
+            self.guide_to_bind_account("2020DNF嘉年华页面主页面签到", "https://dnf.qq.com/cp/a20201203carnival/index.html")
+
+    def dnf_carnival_op(self, ctx, iFlowId, print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_carnival
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/cp/a20201203carnival/")
+
+    # --------------------------------------------2020DNF嘉年华直播--------------------------------------------
+    def dnf_carnival_live(self):
+        if not self.common_cfg.test_mode:
+            # 仅限测试模式运行
+            return
+
+        # # https://dnf.qq.com/cp/a20201203carnival/index.html
+        # show_head_line("2020DNF嘉年华直播")
+
+        if not self.cfg.function_switches.get_dnf_carnival_live or self.disable_most_activities():
+            logger.warning("未启用领取2020DNF嘉年华直播活动合集功能，将跳过")
+            return
+
+        self.check_dnf_carnival_live()
+
+        def query_watch_time():
+            res = self.dnf_carnival_live_op("查询观看时间", "722482", print_res=False)
+            info = AmesvrCommonModRet().auto_update_config(res["modRet"])
+            return int(info.sOutValue3)
+
+        def watch_remaining_time():
+            self.dnf_carnival_live_op("记录完成一分钟观看", "722476")
+
+            current_watch_time = query_watch_time()
+            remaining_time = 15 * 8 - current_watch_time
+            logger.info("账号 {} 当前已观看{}分钟，仍需观看{}分钟".format(self.cfg.name, current_watch_time, remaining_time))
+
+        def query_used_lottery_times():
+            res = self.dnf_carnival_live_op("查询获奖次数", "725567", print_res=False)
+            info = AmesvrCommonModRet().auto_update_config(res["modRet"])
+            return int(info.sOutValue1)
+
+        def lottery_remaining_times():
+            total_lottery_times = query_watch_time() // 15
+            used_lottery_times = query_used_lottery_times()
+            remaining_lottery_times = total_lottery_times - used_lottery_times
+            logger.info("账号 {} 抽奖次数信息：总计={} 已使用={} 剩余={}".format(self.cfg.name, total_lottery_times, used_lottery_times, remaining_lottery_times))
+            if remaining_lottery_times == 0:
+                logger.warning("没有剩余次数，将不进行抽奖")
+                return
+
+            for i in range(remaining_lottery_times):
+                res = self.dnf_carnival_live_op("{}. 抽奖".format(i + 1), "722473")
+                if res["ret"] != "0":
+                    logger.warning("出错了，停止抽奖，剩余抽奖次数为{}".format(remaining_lottery_times - i))
+                    break
+
+        watch_remaining_time()
+        lottery_remaining_times()
+
+    def check_dnf_carnival_live(self):
+        res = self.dnf_carnival_live_op("查询是否绑定", "722472", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        if len(res["modRet"]["jData"]) == 0:
+            self.guide_to_bind_account("2020DNF嘉年华直播", "https://dnf.qq.com/cp/a20201203carnival/index.html")
+
+    def dnf_carnival_live_op(self, ctx, iFlowId, print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_carnival_live
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/cp/a20201203carnival/")
+
+    # --------------------------------------------DNF福利中心兑换--------------------------------------------
+    def dnf_welfare(self):
+        # http://dnf.qq.com/cp/a20190312welfare/index.htm
+        show_head_line("DNF福利中心兑换")
+
+        if not self.cfg.function_switches.get_dnf_welfare or self.disable_most_activities():
+            logger.warning("未启用领取DNF福利中心兑换活动功能，将跳过")
+            return
+
+        self.check_dnf_welfare()
+
+        def exchange_package(sContent):
+            key = "dnf_welfare_exchange_package"
+
+            # 检查是否已经兑换过
+            account_db = load_db_for(self.cfg.name)
+            if key in account_db and account_db[key].get(sContent, False):
+                logger.warning("已经兑换过【{}】，不再尝试兑换".format(sContent))
+                return
+
+            self.dnf_welfare_op("兑换口令-{}".format(sContent), "558229", sContent=quote_plus(quote_plus(quote_plus(sContent))))
+
+            # 本地标记已经兑换过
+            def callback(account_db):
+                if key not in account_db:
+                    account_db[key] = {}
+
+                account_db[key][sContent] = True
+
+            update_db_for(self.cfg.name, callback)
+
+        sContents = [
+            "DNF1224",
+            "你好啊勇士",
+            "2021欧气满满",
+            "321fight",
+        ]
+        for sContent in sContents:
+            exchange_package(sContent)
+
+        # 登陆游戏领福利
+        self.dnf_welfare_login_gifts_op("第一个 2020.12.20 - 2020.12.23 登录游戏", "724929")
+        self.dnf_welfare_login_gifts_op("第二个 2020.12.24 - 2020.12.26 登录游戏", "724930")
+        self.dnf_welfare_login_gifts_op("第三个 2020.12.28 - 2021.01.03 登录游戏", "724936")
+
+        # 分享礼包
+        self.dnf_welfare_login_gifts_op("分享奖励领取", "724940")
+
+    def get_dnf_welfare_userinfo(self):
+        roleinfo = self.bizcode_2_bind_role_map['dnf'].sRoleInfo
+
+        res = self.get("查询角色信息", self.urls.get_game_role_list, game="dnf", area=roleinfo.serviceID, sAMSTargetAppId="", platid="", partition="", print_res=False, is_jsonp=True, need_unquote=False)
+        return AmesvrQueryRole().auto_update_config(res)
+
+    def check_dnf_welfare(self):
+        res = self.dnf_welfare_op("查询是否绑定", "558227", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        if len(res["modRet"]["jData"]) == 0:
+            self.guide_to_bind_account("DNF福利中心兑换", "http://dnf.qq.com/cp/a20190312welfare/index.htm")
+
+    def dnf_welfare_op(self, ctx, iFlowId, sContent="", print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_welfare
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/cp/a20190312welfare/",
+                                   sContent=sContent)
+
+    def dnf_welfare_login_gifts_op(self, ctx, iFlowId, print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_welfare_login_gifts
+
+        roleinfo = self.bizcode_2_bind_role_map['dnf'].sRoleInfo
+        checkInfo = self.get_dnf_welfare_userinfo()
+
+        checkparam = quote_plus(quote_plus(checkInfo.checkparam))
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/cp/a20190312welfare/",
+                                   sArea=roleinfo.serviceID, sPartition=roleinfo.serviceID, sAreaName=quote_plus(quote_plus(roleinfo.serviceName)),
+                                   sRoleId=roleinfo.roleCode, sRoleName=quote_plus(quote_plus(roleinfo.roleName)),
+                                   md5str=checkInfo.md5str, ams_checkparam=checkparam, checkparam=checkparam)
+
+    # --------------------------------------------DNF共创投票--------------------------------------------
+    def dnf_dianzan(self):
+        # https://dnf.qq.com/cp/a20201126version/index.shtml
+        show_head_line("DNF共创投票")
+
+        if not self.cfg.function_switches.get_dnf_dianzan or self.disable_most_activities():
+            logger.warning("未启用领取DNF共创投票活动功能，将跳过")
+            return
+
+        self.check_dnf_dianzan()
+
+        db_key = "dnf_dianzan"
+        pagesize = 10
+
+        # 投票
+        def today_dianzan():
+            account_db = load_db_for(self.cfg.name)
+            today = get_today()
+
+            if db_key not in account_db:
+                account_db[db_key] = {}
+            if today not in account_db[db_key]:
+                account_db[db_key][today] = 0
+            if "usedContentIds" not in account_db[db_key]:
+                account_db[db_key]["usedContentIds"] = []
+
+            dianzanSuccessCount = account_db[db_key][today]
+            if dianzanSuccessCount >= 20:
+                logger.info("今日之前的运行中，已经完成20次点赞了，本次将不执行")
+                return
+
+            for contentId in get_dianzan_contents_with_cache():
+                # 不论投票是否成功，都标记为使用过的内容
+                account_db[db_key]["usedContentIds"].append(contentId)
+                if dianzan(dianzanSuccessCount + 1, contentId):
+                    dianzanSuccessCount += 1
+                    if dianzanSuccessCount >= 20:
+                        logger.info("今日已经累计点赞20个，将停止点赞")
+                        break
+
+            account_db[db_key][today] = dianzanSuccessCount
+
+            save_db_for(self.cfg.name, account_db)
+
+        def get_dianzan_contents_with_cache():
+            db = load_db()
+            account_db = load_db_for(self.cfg.name)
+
+            usedContentIds = []
+            if db_key in account_db:
+                usedContentIds = account_db[db_key].get("usedContentIds", [])
+
+            def filter_used_contents(contentIds):
+                validContentIds = []
+                for contentId in contentIds:
+                    if contentId not in usedContentIds:
+                        validContentIds.append(contentId)
+
+                logger.info(validContentIds)
+
+                return validContentIds
+
+            if db_key in db:
+                contentIds = db[db_key]["contentIds"]
+
+                validContentIds = filter_used_contents(contentIds)
+
+                if len(validContentIds) >= 20:
+                    # 本地仍有不少于20个内容可供点赞，直接使用本地内容
+                    return validContentIds
+
+            return filter_used_contents(get_dianzan_contents())
+
+        def get_dianzan_contents():
+            logger.info("本地无点赞目标，或缓存的点赞目标均已点赞过，需要重新拉取，请稍后~")
+            contentIds = []
+
+            for iCategory2 in range(1, 8 + 1):
+                newContentIds, total = getWorksData(iCategory2, 1)
+                contentIds.extend(newContentIds)
+
+                # 获取剩余页面
+                totalPage = math.ceil(total / 10)
+                for page in range(2, totalPage):
+                    newContentIds, _ = getWorksData(iCategory2, page)
+                    contentIds.extend(newContentIds)
+
+            logger.info("获取所有内容ID共计{}个，将保存到本地，具体如下：{}".format(len(contentIds), contentIds))
+
+            def _update_db(db):
+                if db_key not in db:
+                    db[db_key] = {}
+
+                db[db_key]["contentIds"] = contentIds
+
+            update_db(_update_db)
+
+            return contentIds
+
+        def getWorksData(iCategory2, page):
+            ctx = "查询点赞内容-{}-{}".format(iCategory2, page)
+            res = self.get(ctx, self.urls.query_dianzan_contents, iCategory1=20, iCategory2=iCategory2, page=page, pagesize=pagesize, is_jsonp=True, is_normal_jsonp=True)
+            return [v["iContentId"] for v in res["jData"]["data"]], int(res["jData"]["total"])
+
+        def dianzan(idx, iContentId) -> bool:
+            res = self.get("今日第{}次投票，目标为{}".format(idx, iContentId), self.urls.dianzan, iContentId=iContentId, is_jsonp=True, is_normal_jsonp=True)
+            return int(res["iRet"]) == 0
+
+        # 进行今天剩余的点赞操作
+        today_dianzan()
+
+        # 查询点赞信息
+        self.query_dnf_dianzan()
+
+        # 领取点赞奖励
+        self.dnf_dianzan_op("累计 10票", "725276")
+        self.dnf_dianzan_op("累计 25票", "725340")
+        self.dnf_dianzan_op("累计100票", "725341")
+        self.dnf_dianzan_op("累计200票", "725342")
+
+    def query_dnf_dianzan(self):
+        res = self.dnf_dianzan_op("查询点赞信息", "725348", print_res=False)
+        info = AmesvrCommonModRet().auto_update_config(res["modRet"])
+
+        logger.warning(color("fg_bold_yellow") + "DNF共创投票活动当前已投票{}次，奖励领取状态为{}".format(info.sOutValue1, info.sOutValue2))
+
+    def check_dnf_dianzan(self):
+        res = self.dnf_dianzan_op("查询是否绑定", "725330", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        if len(res["modRet"]["jData"]) == 0:
+            self.guide_to_bind_account("DNF共创投票", "https://dnf.qq.com/cp/a20201126version/index.shtml")
+
+    def dnf_dianzan_op(self, ctx, iFlowId, sContent="", print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_dianzan
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/cp/a20201126version/")
+
+    # --------------------------------------------心悦app理财礼卡--------------------------------------------
+    def xinyue_financing(self):
+        if not self.common_cfg.test_mode:
+            # undone: 心悦app理财礼卡活动似乎还有一些问题，先本地运行一段时间再放出去
+            return
+
+        # https://xinyue.qq.com/act/app/xyjf/a20171031lclk/index1.shtml
+        show_head_line("心悦app理财礼卡")
+
+        logger.info(color("fg_bold_yellow") + "TODO：等理财礼卡测试OK记得移除上面的测试模式限定，并把功能放出去（功能开关、理财卡列表配置项）")
+
+        if not self.cfg.function_switches.get_xinyue_financing or self.disable_most_activities():
+            logger.warning("未启用领取心悦app理财礼卡活动合集功能，将跳过")
+            return
+
+        selectedCards = self.cfg.xinyue_financing_card_names
+        if len(selectedCards) == 0:
+            logger.warning("未配置心悦app理财礼卡活动选择的理财卡类型(xinyue_financing_card_names)，将跳过")
+            return
+
+        logger.info(color("fg_bold_green") + "当前配置的理财卡列表为: {}".format(selectedCards))
+
+        type2name = {
+            "type1": "体验版周卡",
+            "type2": "升级版周卡",
+            "type3": "体验版月卡",
+            "type4": "升级版月卡",
+        }
+
+        # ------------- 封装函数 ----------------
+        def query_gpoints():
+            res = AmesvrCommonModRet().auto_update_config(self.xinyue_financing_op("查询G分", "409361", print_res=False)["modRet"])
+            return int(res.sOutValue2)
+
+        def query_card_taken_map():
+            res = AmesvrCommonModRet().auto_update_config(self.xinyue_financing_op("查询G分", "409361", print_res=False)["modRet"])
+            statusList = res.sOutValue3.split('|')
+
+            cardTakenMap = {}
+            for i in range(1, 4 + 1):
+                name = type2name["type{}".format(i)]
+                if int(statusList[i]) > 0:
+                    taken = True
+                else:
+                    taken = False
+
+                cardTakenMap[name] = taken
+
+            return cardTakenMap
+
+        def show_financing_info():
+            info_map = get_financing_info_map()
+
+            heads = ["理财卡名称", "当前状态", "累计收益", "剩余天数", "结束日期"]
+            colSizes = [10, 8, 8, 8, 10]
+            logger.info(color("bold_green") + tableify(heads, colSizes))
+            for name, info in info_map.items():
+                if name not in selectedCards:
+                    # 跳过未选择的卡
+                    continue
+
+                if info.buy:
+                    status = "已购买"
+                else:
+                    status = "未购买"
+
+                logger.info(color("fg_bold_cyan") + tableify([name, status, info.totalIncome, info.leftTime, info.endTime], colSizes))
+
+        def get_financing_info_map():
+            financingInfoMap = json.loads(self.xinyue_financing_op("查询各理财卡信息", "409714", print_res=False)["modRet"]["jData"]["arr"])  # type: dict
+            financingTimeInfoMap = json.loads(self.xinyue_financing_op("查询理财礼卡天数信息", "409396", print_res=False)["modRet"]["jData"]["arr"])  # type: dict
+
+            info_map = {}
+            for typ, financingInfo in financingInfoMap.items():
+                info = XinyueFinancingInfo()
+
+                info.name = type2name[typ]
+                if financingInfo["status"] == 0:
+                    info.buy = False
+                else:
+                    info.buy = True
+                info.totalIncome = financingInfo["totalIncome"]
+
+                if typ in financingTimeInfoMap["alltype"]:
+                    info.leftTime = financingTimeInfoMap["alltype"][typ]["leftime"]
+                if "opened" in financingTimeInfoMap and typ in financingTimeInfoMap["opened"]:
+                    info.endTime = financingTimeInfoMap["opened"][typ]["endtime"]
+
+                info_map[info.name] = info
+
+            return info_map
+
+        # ------------- 正式逻辑 ----------------
+        try:
+            pass
+            gPoints = query_gpoints()
+            startPoints = gPoints
+            logger.info("当前G分为{}".format(startPoints))
+
+            # 活动规则
+            # 1、购买理财礼卡：每次购买理财礼卡成功后，当日至其周期结束，每天可以领取相应的收益G分，当日如不领取，则视为放弃
+            # 2、购买限制：每个帐号仅可同时拥有两种理财礼卡，到期后则可再次购买
+            # ps：推荐购买体验版月卡和升级版月卡
+            financingCardsToBuyAndMap = {
+                ## 名称   购买价格   购买FlowId    领取FlowId
+                "体验版周卡": (20, "408990", "507439"),  # 5分/7天/35-20=15/2分收益每天
+                "升级版周卡": (80, "409517", "507441"),  # 20分/7天/140-80=60/8.6分收益每天
+                "体验版月卡": (300, "409534", "507443"),  # 25分/30天/750-300=450/15分收益每天
+                "升级版月卡": (600, "409537", "507444"),  # 60分/30天/1800-600=1200/40分收益每天
+            }
+
+            cardInfoMap = get_financing_info_map()
+            cardTakenMap = query_card_taken_map()
+            for cardName in selectedCards:
+                if cardName not in financingCardsToBuyAndMap:
+                    logger.warning("没有找到名为【{}】的理财卡，请确认是否配置错误".format(cardName))
+                    continue
+
+                buyPrice, buyFlowId, takeFlowId = financingCardsToBuyAndMap[cardName]
+                cardInfo = cardInfoMap[cardName]
+                taken = cardTakenMap[cardName]
+                # 如果尚未购买（或过期），则购买
+                if not cardInfo.buy:
+                    if gPoints >= buyPrice:
+                        self.xinyue_financing_op("购买{}".format(cardName), buyFlowId)
+                        gPoints -= buyPrice
+                    else:
+                        logger.warning("积分不够，将跳过购买~，购买{}需要{}G分，当前仅有{}G分".format(cardName, buyPrice, gPoints))
+                        continue
+
+                # 此处以确保购买，尝试领取
+                if taken:
+                    logger.warning("今日已经领取过{}了，本次将跳过".format(cardName))
+                else:
+                    self.xinyue_financing_op("领取{}".format(cardName), takeFlowId)
+
+            newGPoints = query_gpoints()
+            delta = newGPoints - startPoints
+            logger.warning("")
+            logger.warning(color("fg_bold_yellow") + "账号 {} 本次心悦理财礼卡操作共获得 {} G分（ {} -> {} ）".format(self.cfg.name, delta, startPoints, newGPoints))
+            logger.warning("")
+
+            show_financing_info()
+        except Exception as e:
+            logger.error("处理心悦app理财礼卡出错了", exc_info=e)
+
+    def xinyue_financing_op(self, ctx, iFlowId, print_res=True):
+        iActivityId = self.urls.iActivityId_xinyue_financing
+
+        plat = 3  # app
+        extraStr = quote_plus('"mod1":"1","mod2":"0","mod3":"x27"')
+
+        return self.amesvr_request(ctx, "comm.ams.game.qq.com", "xinyue", "tgclub", iActivityId, iFlowId, print_res, "https://xinyue.qq.com/act/app/xyjf/a20171031lclk/index1.shtml",
+                                   plat=plat, extraStr=extraStr)
+
+    # --------------------------------------------dnf漂流瓶--------------------------------------------
+    def dnf_drift(self):
+        # https://dnf.qq.com/cp/a20201211driftm/index.html
+        show_head_line("dnf漂流瓶")
+
+        if not self.cfg.function_switches.get_dnf_drift or self.disable_most_activities():
+            logger.warning("未启用领取dnf漂流瓶活动功能，将跳过")
+            return
+
+        self.check_dnf_drift()
+
+        def send_friend_invitation(typStr, flowid, dayLimit):
+            send_count = 0
+            for sendQQ in self.cfg.drift_send_qq_list:
+                logger.info("等待2秒，避免请求过快")
+                time.sleep(2)
+                res = self.dnf_drift_op("发送{}好友邀请-{}赠送2积分".format(typStr, sendQQ), flowid, sendQQ=sendQQ, moduleId="2")
+
+                send_count += 1
+                if int(res["ret"]) != 0 or send_count >= dayLimit:
+                    logger.warning("已达到本日邀请上限({})，将停止邀请".format(dayLimit))
+                    return
+
+        def take_friend_awards(typStr, type, moduleId, take_points_flowid):
+            page = 1
+            while True:
+                logger.info("等待2秒，避免请求过快")
+                time.sleep(2)
+
+                queryRes = self.dnf_drift_op("拉取接受的{}好友列表".format(typStr), "725358", page=str(page), type=type)
+                if int(queryRes["ret"]) != 0 or queryRes["modRet"]["jData"]["iTotal"] == 0:
+                    logger.warning("没有更多接收邀请的好友了，停止领取积分")
+                    return
+
+                for friend_info in queryRes["modRet"]["jData"]["jData"]:
+                    takeRes = self.dnf_drift_op("邀请人领取{}邀请{}的积分".format(typStr, friend_info["iUin"]), take_points_flowid, acceptId=friend_info["id"], moduleId=moduleId)
+                    if int(takeRes["ret"]) != 0:
+                        logger.warning("似乎已达到今日上限，停止领取")
+                        return
+                    if takeRes["modRet"]["iRet"] != 0:
+                        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1230002652-mtPJXE-348890-726267"}, "modRet": {"all_item_list": [], "bHasSendFailItem": "0", "bRealSendSucc": 1, "dTimeNow": "2020-12-30 00:26:52", "iActivityId": "381537", "iDbPackageAutoIncId": 0, "iLastMpResultCode": 2037540212, "iPackageGroupId": "", "iPackageId": "", "iPackageIdCnt": "", "iPackageNum": "1", "iReentry": 0, "iRet": 100002, "iWecatCardResultCode": 0, "isCmemReEntryOpen": "yes", "jData": {"iPackageId": "0", "sPackageName": ""}, "jExtend": "", "sAmsSerialNum": "AMS-DNF-1230002652-mtPJXE-348890-726267", "sItemMsg": null, "sMidasCouponRes": "null\n", "sMidasPresentRes": "null\n", "sMsg": "非常抱歉，您此次活动领取次数已达最大，不能领取！", "sPackageCDkey": "", "sPackageLimitCheckCode": "2227289:70008,", "sPackageName": "", "sPackageRealFlag": "0", "sVersion": "V1.0.1752b92.00a0875.20201210155534"}, "ret": "0", "msg": ""}
+                        logger.warning("出错了，停止领取，具体原因请看上一行的sMsg")
+                        return
+
+                page += 5
+
+        # 01 这一切都是命运的选择
+        # 礼包海
+        self.dnf_drift_op("捞一个", "725715")
+        # 丢礼包，日限8次
+        send_friend_invitation("普通", "725819", 8)
+        take_friend_awards("普通", "1", "4", "726267")
+
+        # 02 承认吧，这是友情的羁绊
+        # 那些年错过的他，日限5次
+        send_friend_invitation("流失", "726069", 5)
+        take_friend_awards("流失", "2", "6", "726269")
+        # 礼包领取站
+        self.dnf_drift_op("流失用户领取礼包", "727230")
+
+        # 03 来吧，吾之宝藏
+        # 积分夺宝
+        totalPoints, remainingPoints = self.query_dnf_drift_points()
+        remainingLotteryTimes = remainingPoints // 4
+        logger.info(color("bold_yellow") + "当前积分为{}，总计可进行{}次抽奖。历史累计获取积分数为{}".format(remainingPoints, remainingLotteryTimes, totalPoints))
+        for i in range(remainingLotteryTimes):
+            self.dnf_drift_op("开始夺宝 - 第{}次".format(i + 1), "726379")
+
+        # 04 在线好礼站
+        self.dnf_drift_op("在线30min", "725675", moduleId="2")
+        self.dnf_drift_op("累计3天礼包", "725699", moduleId="0", giftId="1437440")
+        self.dnf_drift_op("累计7天礼包", "725699", moduleId="0", giftId="1437441")
+        self.dnf_drift_op("累计15天礼包", "725699", moduleId="0", giftId="1437442")
+
+        # 分享
+        self.dnf_drift_op("分享领取礼包", "726345")
+
+    def query_dnf_drift_points(self):
+        res = self.dnf_drift_op("查询基础信息", "726353")
+        info = AmesvrCommonModRet().auto_update_config(res["modRet"])
+        total, remaining = int(info.sOutValue2), int(info.sOutValue2) - int(info.sOutValue1) * 4
+        return total, remaining
+
+    def check_dnf_drift(self):
+        res = self.dnf_drift_op("查询是否绑定", "725357", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        typ = random.choice([1, 2])
+        activity_url = "https://dnf.qq.com/cp/a20201211driftm/index.html?sId=0252c9b811d66dc1f0c9c6284b378e40&type={}".format(typ)
+        if len(res["modRet"]["jData"]) == 0:
+            self.guide_to_bind_account("dnf漂流瓶", activity_url)
+
+        if is_first_run("check_dnf_drift"):
+            msg = "求帮忙做一下邀请任务0-0  只用在点击确定按钮后弹出的活动页面中点【确认接受邀请】就行啦（这条消息只会出现一次）"
+            logger.warning(color("bold_cyan") + msg)
+            win32api.MessageBox(0, msg, "帮忙接受一下邀请0-0", win32con.MB_ICONWARNING)
+            webbrowser.open(activity_url)
+
+    def dnf_drift_op(self, ctx, iFlowId, page="", type="", moduleId="", giftId="", acceptId="", sendQQ="", print_res=True):
+        iActivityId = self.urls.iActivityId_dnf_drift
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/cp/a20201211driftm/",
+                                   page=page, type=type, moduleId=moduleId, giftId=giftId, acceptId=acceptId, sendQQ=sendQQ)
+
+    # --------------------------------------------DNF马杰洛的规划第二期--------------------------------------------
+    def majieluo(self):
+        # https://dnf.qq.com/cp/a20201224welfare/index.html
+        show_head_line("DNF马杰洛的规划第二期")
+
+        if not self.cfg.function_switches.get_majieluo or self.disable_most_activities():
+            logger.warning("未启用领取DNF马杰洛的规划第二期活动功能，将跳过")
+            return
+
+        self.check_majieluo()
+
+        def query_stone_count():
+            res = self.majieluo_op("查询当前时间引导石数量", "727334", print_res=False)
+            info = AmesvrCommonModRet().auto_update_config(res["modRet"])
+            return int(info.sOutValue1)
+
+        def take_share_award():
+            queryRes = self.majieluo_op("【分享】查询已接受分享邀请的好友列表", "727340")
+            if queryRes["modRet"]["jData"]["iTotal"] == 0:
+                logger.warning("没有接收分享的好友，无法领取奖励")
+                return
+
+            for raw_friend_info in queryRes["modRet"]["jData"]["jData"]:
+                friend_info = MajieluoShareInfo().auto_update_config(raw_friend_info)
+                if friend_info.iShareLottery == '0':
+                    self.majieluo_op("【分享】好友扫码，分享者+9", "727276", invitee=friend_info.iInvitee)
+                if friend_info.iLostLottery == '0':
+                    self.majieluo_op("【分享】好友为流失玩家，分享者额外+10", "727281", invitee=friend_info.iInvitee)
+                if friend_info.iAssistLottery == '0':
+                    self.majieluo_op("【分享】好友为流失玩家且登录游戏（即助力好友），额外再+10", "727285", invitee=friend_info.iInvitee)
+
+        # 01 马杰洛的见面礼
+        self.majieluo_op("领取见面礼", "727212")
+
+        # 02 马杰洛的幸运骰子
+        self.majieluo_op("【每日签到】摇一摇", "727213")
+        self.majieluo_op("【每日签到】点数乘2倍", "727217")
+
+        # 03 黑钻送好友
+        for receiverQQ in self.cfg.majieluo_receiver_qq_list:
+            logger.info("等待2秒，避免请求过快")
+            time.sleep(2)
+            # {"ret": "700", "msg": "非常抱歉，您还不满足参加该活动的条件！", "flowRet": {"iRet": "700", "sLogSerialNum": "AMS-DNF-1226165046-1QvZiG-350347-727218", "iAlertSerial": "0", "iCondNotMetId": "1412917", "sMsg": "您每天最多为2名好友赠送黑钻~", "sCondNotMetTips": "您每天最多为2名好友赠送黑钻~"}, "failedRet": {"793123": {"iRuleId": "793123", "jRuleFailedInfo": {"iFailedRet": 700, "iCondId": "1412917", "iCondParam": "sCondition1", "iCondRet": "2"}}}}
+            res = self.majieluo_op("【赠礼】发送赠送邀请-{}".format(receiverQQ), "727218", receiver=receiverQQ, receiverName=quote_plus("小号"), inviterName=quote_plus("大号"))
+            if int(res["ret"]) == 700:
+                logger.warning("今日赠送上限已到达，将停止~")
+                break
+
+            self.majieluo_op("【赠礼】领取引导石+9", "727290", receiver=receiverQQ)
+
+        # 04 分享得好礼（看看逻辑，可能不做）
+        take_share_award()
+
+        # 05 分享得好礼
+        # 提取石头并领取提取奖励
+        stoneCount = query_stone_count()
+        logger.warning(color("bold_yellow") + "当前共有{}个引导石".format(stoneCount))
+
+        now = datetime.datetime.now()
+        thisMonthLastDay = calendar.monthrange(now.year, now.month)[1]
+
+        takeStone = False
+        if stoneCount >= 1000:
+            # 达到1000个
+            self.majieluo_op("提取时间引导石", "727229", giftNum="10")
+            takeStone = True
+        elif now.day == thisMonthLastDay or str(now.date()) == "2021-01-21":
+            # 今天是本月最后一天（因为新的一个月会清零）或者是活动最后一天
+            self.majieluo_op("提取时间引导石", "727229", giftNum=str(stoneCount // 100))
+            takeStone = True
+        else:
+            logger.info("当前未到最后领取期限（本月末或活动结束时），且石头数目不足1000，故不尝试提取")
+
+        if takeStone:
+            self.majieluo_op("【提取福利】提取数量大于1000", "727246")
+            self.majieluo_op("【提取福利】提取数量大于600小于1000", "727240")
+            self.majieluo_op("【提取福利】提取数量<=600", "727232")
+
+    def check_majieluo(self):
+        res = self.majieluo_op("查询是否绑定", "727124", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        if len(res["modRet"]["jData"]) == 0:
+            urls = [
+                # 二维码分享
+                "https://dnf.qq.com/cp/a20201224welfarem/index.html?inviter=1054073896&pt=1",
+            ]
+            self.guide_to_bind_account("DNF马杰洛的规划第二期", random.choice(urls))
+
+    def majieluo_op(self, ctx, iFlowId, invitee="", giftNum="", receiver="", receiverName="", inviterName="", print_res=True):
+        iActivityId = self.urls.iActivityId_majieluo
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/cp/a20201224welfare/",
+                                   invitee=invitee, giftNum=giftNum, receiver=receiver, receiverName=receiverName, inviterName=inviterName)
+
+    # --------------------------------------------暖冬好礼活动--------------------------------------------
+    def warm_winter(self):
+        # https://dnf.qq.com/lbact/a20200911lbz3dns/index.html
+        show_head_line("暖冬好礼活动")
+
+        if not self.cfg.function_switches.get_warm_winter or self.disable_most_activities():
+            logger.warning("未启用领取暖冬好礼活动功能，将跳过")
+            return
+
+        self.check_warm_winter()
+
+        def get_lottery_times():
+            res = self.warm_winter_op("查询剩余抽奖次数", "728476", print_res=False)
+            # "sOutValue1": "279:2:1",
+            val = res["modRet"]["sOutValue1"]
+            jfId, total, remaining = [int(v) for v in val.split(':')]
+            return total, remaining
+
+        def get_checkin_days():
+            res = self.warm_winter_op("查询签到信息", "723178")
+            return int(res["modRet"]["total"])
+
+        # 01 勇士齐聚阿拉德
+        self.warm_winter_op("四个礼盒随机抽取", "723167")
+
+        # 02 累计签到领豪礼
+        self.warm_winter_op("签到礼包", "723165")
+        logger.info(color("fg_bold_cyan") + "当前已累积签到 {} 天".format(get_checkin_days()))
+        self.warm_winter_op("签到3天礼包", "723170")
+        self.warm_winter_op("签到5天礼包", "723171")
+        self.warm_winter_op("签到7天礼包", "723172")
+        self.warm_winter_op("签到10天礼包", "723173")
+        self.warm_winter_op("签到15天礼包", "723174")
+
+        # 03 累计签到抽大奖
+        self.warm_winter_op("1.在WeGame启动DNF", "723175")
+        self.warm_winter_op("2.游戏在线30分钟", "723176")
+        total_lottery_times, lottery_times = get_lottery_times()
+        logger.info(color("fg_bold_cyan") + "即将进行抽奖，当前剩余抽奖资格为{}，累计获取{}次抽奖机会".format(lottery_times, total_lottery_times))
+        for i in range(lottery_times):
+            res = self.warm_winter_op("每日抽奖", "723177")
+            if res.get('ret', "0") == "600":
+                # {"ret": "600", "msg": "非常抱歉，您的资格已经用尽！", "flowRet": {"iRet": "600", "sLogSerialNum": "AMS-DNF-1031000622-s0IQqN-331515-703957", "iAlertSerial": "0", "sMsg": "非常抱歉！您的资格已用尽！"}, "failedRet": {"762140": {"iRuleId": "762140", "jRuleFailedInfo": {"iFailedRet": 600}}}}
+                break
+
+    def check_warm_winter(self):
+        res = self.warm_winter_op("查询是否绑定", "723162", print_res=False)
+        # {"flowRet": {"iRet": "0", "sMsg": "MODULE OK", "iAlertSerial": "0", "sLogSerialNum": "AMS-DNF-1212213814-q4VCJQ-346329-722055"}, "modRet": {"iRet": 0, "sMsg": "ok", "jData": [], "sAMSSerial": "AMS-DNF-1212213814-q4VCJQ-346329-722055", "commitId": "722054"}, "ret": "0", "msg": ""}
+        if len(res["modRet"]["jData"]) == 0:
+            self.guide_to_bind_account("暖冬好礼", "https://dnf.qq.com/lbact/a20200911lbz3dns/index.html")
+
+    def warm_winter_op(self, ctx, iFlowId, print_res=True):
+        iActivityId = self.urls.iActivityId_warm_winter
+
+        return self.amesvr_request(ctx, "x6m5.ams.game.qq.com", "group_3", "dnf", iActivityId, iFlowId, print_res, "http://dnf.qq.com/lbact/a20200911lbz3dns/")
+
+    # --------------------------------------------辅助函数--------------------------------------------
+    def get(self, ctx, url, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, need_unquote=True, extra_cookies="", **params):
+        return self.network.get(ctx, self.format(url, **params), pretty, print_res, is_jsonp, is_normal_jsonp, need_unquote, extra_cookies)
+
+    def post(self, ctx, url, data, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, need_unquote=True, extra_cookies="", **params):
+        return self.network.post(ctx, self.format(url, **params), data, pretty, print_res, is_jsonp, is_normal_jsonp, need_unquote, extra_cookies)
 
     def format(self, url, **params):
         endTime = datetime.datetime.now()
@@ -2134,8 +2961,23 @@ class DjcHelper:
             "page": "",
             "iPackageId": "",
             "isLock": "", "amsid": "", "iLbSel1": "", "num": "", "mold": "", "exNum": "", "iCard": "", "iNum": "", "actionId": "",
+            "plat": "", "extraStr": "",
+            "sContent": "", "sPartition": "", "sAreaName": "", "md5str": "", "ams_checkparam": "", "checkparam": "",
+            "type": "", "moduleId": "", "giftId": "", "acceptId": "", "sendQQ": "",
+            "invitee": "", "giftNum": "", "receiver": "", "receiverName": "", "inviterName": "",
         }
-        return url.format(**{**default_params, **params})
+
+        # 首先将默认参数添加进去，避免format时报错
+        merged_params = {**default_params, **params}
+
+        # # 需要url encode一下，否则如果用户配置的值中包含&等符号时，会影响后续实际逻辑
+        # quoted_params = {k: quote_plus(str(v)) for k, v in merged_params.items()}
+
+        # 将参数全部填充到url的参数中
+        urlRendered = url.format(**merged_params)
+
+        # 过滤掉没有实际赋值的参数
+        return filter_unused_params(urlRendered)
 
     def get_month(self):
         now = datetime.datetime.now()
@@ -2169,46 +3011,118 @@ class DjcHelper:
     def make_cookie(self, map: dict):
         return '; '.join(['{}={}'.format(k, v) for k, v in map.items()])
 
+    def guide_to_bind_account(self, activity_name, activity_url):
+        msg = "当前账号【{}】未在活动页面绑定角色，请点击右下角的【确定】按钮后，在自动弹出的【{}】活动页面进行绑定，然后重新运行程序\n若无需该功能，可前往配置文件自行关闭该功能".format(self.cfg.name, activity_name)
+        logger.warning(color("bold_cyan") + msg)
+        win32api.MessageBox(0, msg, "需绑定账号", win32con.MB_ICONWARNING)
+        webbrowser.open(activity_url)
+        exit(-1)
+
+    def disable_most_activities(self):
+        return self.cfg.function_switches.disable_most_activities
+
+
+def watch_live():
+    # 读取配置信息
+    load_config("config.toml", "config.toml.local")
+    cfg = config()
+
+    RunAll = True
+    indexes = [1]
+    if RunAll:
+        indexes = [i + 1 for i in range(len(cfg.account_configs))]
+
+    totalTime = 2 * 60 + 5  # 为了保险起见，多执行5分钟
+    logger.info("totalTime={}".format(totalTime))
+
+    for t in range(totalTime):
+        timeStart = datetime.datetime.now()
+        logger.info(color("bold_yellow") + "开始执行第{}分钟的流程".format(t + 1))
+        for idx in indexes:  # 从1开始，第i个
+            account_config = cfg.account_configs[idx - 1]
+            if not account_config.is_enabled() or account_config.cannot_bind_dnf:
+                logger.warning("账号被禁用或无法绑定DNF，将跳过")
+                continue
+
+            djcHelper = DjcHelper(account_config, cfg.common)
+            djcHelper.check_skey_expired()
+
+            djcHelper.dnf_carnival_live()
+
+        totalUsed = (datetime.datetime.now() - timeStart).total_seconds()
+        if totalUsed < 60:
+            waitTime = 60.1 - totalUsed
+            logger.info(color("bold_cyan") + "本轮累积用时{}秒，将休息{}秒".format(totalUsed, waitTime))
+            time.sleep(waitTime)
+
 
 if __name__ == '__main__':
     # 读取配置信息
     load_config("config.toml", "config.toml.local")
     cfg = config()
 
-    idx = 1  # 从1开始，第i个
-    account_config = cfg.account_configs[idx - 1]
+    RunAll = False
+    indexes = [1]
+    if RunAll:
+        indexes = [i + 1 for i in range(len(cfg.account_configs))]
 
-    logger.info("开始处理第{}个账户[{}]".format(idx, account_config.name))
+    for idx in indexes:  # 从1开始，第i个
+        account_config = cfg.account_configs[idx - 1]
 
-    djcHelper = DjcHelper(account_config, cfg.common)
-    # djcHelper.run()
-    djcHelper.check_skey_expired()
-    djcHelper.get_bind_role_list()
+        show_head_line("预先获取第{}个账户[{}]的skey".format(idx, account_config.name), color("fg_bold_yellow"))
 
-    # djcHelper.query_all_extra_info()
-    # djcHelper.exchange_items()
-    # djcHelper.xinyue_operations()
-    # djcHelper.try_join_fixed_xinyue_team()
-    # djcHelper.get_heizuan_gift()
-    # djcHelper.get_credit_xinyue_gift()
-    # djcHelper.query_mobile_game_rolelist()
-    # djcHelper.complete_tasks()
-    # djcHelper.xinyue_guoqing()
-    # djcHelper.ark_lottery()
-    # djcHelper.wegame_guoqing()
-    # djcHelper.dnf_922()
-    # djcHelper.dnf_shanguang()
-    # djcHelper.qq_video()
-    # djcHelper.djc_operations()
-    # djcHelper.dnf_female_mage_awaken()
-    # djcHelper.guanjia()
-    # djcHelper.dnf_shanguang()
-    # djcHelper.send_card_by_name("独立成团打副本", "1054073896")
-    # djcHelper.wx_checkin()
-    # djcHelper.qq_video()
-    # djcHelper.dnf_female_mage_awaken()
-    # djcHelper.xinyue_sailiyam()
-    # djcHelper.dnf_rank()
-    # djcHelper.dnf_warriors_call()
-    # djcHelper.dnf_helper_chronicle()
-    djcHelper.hello_voice()
+        if not account_config.is_enabled():
+            logger.warning("账号被禁用，将跳过")
+            continue
+
+        djcHelper = DjcHelper(account_config, cfg.common)
+        djcHelper.check_skey_expired()
+
+    for idx in indexes:  # 从1开始，第i个
+        account_config = cfg.account_configs[idx - 1]
+
+        show_head_line("开始处理第{}个账户[{}]".format(idx, account_config.name), color("fg_bold_yellow"))
+
+        if not account_config.is_enabled():
+            logger.warning("账号被禁用，将跳过")
+            continue
+
+        djcHelper = DjcHelper(account_config, cfg.common)
+        # djcHelper.run()
+        djcHelper.check_skey_expired()
+        djcHelper.get_bind_role_list()
+
+        # djcHelper.query_all_extra_info()
+        # djcHelper.exchange_items()
+        # djcHelper.xinyue_operations()
+        # djcHelper.try_join_fixed_xinyue_team()
+        # djcHelper.get_heizuan_gift()
+        # djcHelper.get_credit_xinyue_gift()
+        # djcHelper.query_mobile_game_rolelist()
+        # djcHelper.complete_tasks()
+        # djcHelper.xinyue_guoqing()
+        # djcHelper.wegame_guoqing()
+        # djcHelper.djc_operations()
+        # djcHelper.dnf_female_mage_awaken()
+        # djcHelper.send_card_by_name("独立成团打副本", "1054073896")
+        # djcHelper.wx_checkin()
+        # djcHelper.dnf_female_mage_awaken()
+        # djcHelper.xinyue_sailiyam()
+        # djcHelper.dnf_rank()
+        # djcHelper.dnf_warriors_call()
+        # djcHelper.dnf_helper_chronicle()
+        # djcHelper.hello_voice()
+        # djcHelper.dnf_carnival()
+        # djcHelper.ark_lottery()
+        # djcHelper.xinyue_financing()
+        # djcHelper.dnf_carnival_live()
+        # djcHelper.dnf_welfare()
+        # djcHelper.dnf_dianzan()
+        # djcHelper.dnf_drift()
+        # djcHelper.majieluo()
+        # djcHelper.dnf_helper_christmas()
+        # djcHelper.dnf_shanguang()
+        # djcHelper.warm_winter()
+        # djcHelper.guanjia()
+        # djcHelper.dnf_1224()
+        djcHelper.qq_video()

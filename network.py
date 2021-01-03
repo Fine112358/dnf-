@@ -30,7 +30,7 @@ class Network:
             "Cookie": self.base_cookies,
         }
 
-    def get(self, ctx, url, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, extra_cookies=""):
+    def get(self, ctx, url, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, need_unquote=True, extra_cookies=""):
         def request_fn():
             cookies = self.base_cookies + extra_cookies
             get_headers = {**self.base_headers, **{
@@ -39,9 +39,9 @@ class Network:
             return requests.get(url, headers=get_headers, timeout=self.common_cfg.http_timeout)
 
         res = try_request(request_fn, self.common_cfg.retry)
-        return process_result(ctx, res, pretty, print_res, is_jsonp, is_normal_jsonp)
+        return process_result(ctx, res, pretty, print_res, is_jsonp, is_normal_jsonp, need_unquote)
 
-    def post(self, ctx, url, data, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, extra_cookies=""):
+    def post(self, ctx, url, data, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, need_unquote=True, extra_cookies=""):
         def request_fn():
             cookies = self.base_cookies + extra_cookies
             post_headers = {**self.base_headers, **{
@@ -52,29 +52,38 @@ class Network:
 
         res = try_request(request_fn, self.common_cfg.retry)
         logger.debug("{}".format(data))
-        return process_result(ctx, res, pretty, print_res, is_jsonp, is_normal_jsonp)
+        return process_result(ctx, res, pretty, print_res, is_jsonp, is_normal_jsonp, need_unquote)
 
 
-def try_request(request_fn, retryCfg):
+def try_request(request_fn, retryCfg, check_fn=None):
     """
+    :param check_fn: func(requests.Response) -> bool
     :type retryCfg: RetryConfig
     """
     for i in range(retryCfg.max_retry_count):
         try:
-            return request_fn()
+            response = request_fn()  # type: requests.Response
+
+            if check_fn is not None:
+                if not check_fn(response):
+                    raise Exception("check failed")
+
+            return response
         except Exception as exc:
-            logger.exception("{}/{}: request failed, wait {}s".format(i + 1, retryCfg.max_retry_count, retryCfg.retry_wait_time), exc_info=exc)
+            logger.exception("request failed, detail as below:", exc_info=exc)
+            logger.error("full call stack=\n{}".format(color("bold_black") + ''.join(traceback.format_stack())))
+            logger.warning(color("thin_yellow") + "{}/{}: request failed, wait {}s".format(i + 1, retryCfg.max_retry_count, retryCfg.retry_wait_time))
             if i + 1 != retryCfg.max_retry_count:
                 time.sleep(retryCfg.retry_wait_time)
 
     logger.error("重试{}次后仍失败".format(retryCfg.max_retry_count))
 
 
-def process_result(ctx, res, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False):
+def process_result(ctx, res, pretty=False, print_res=True, is_jsonp=False, is_normal_jsonp=False, need_unquote=True):
     res.encoding = 'utf-8'
 
     if is_jsonp:
-        data = jsonp2json(res.text, is_normal_jsonp)
+        data = jsonp2json(res.text, is_normal_jsonp, need_unquote)
     else:
         data = res.json()
 
@@ -101,6 +110,7 @@ def is_request_ok(data):
             "code",
             "iRet",
             "status",
+            "ecode",
         ]
         for key in returnCodeKeys:
             if key in data:
@@ -110,22 +120,27 @@ def is_request_ok(data):
         # 特殊处理qq视频
         if "data" in data and type(data["data"]) is dict and "sys_code" in data["data"]:
             success = int(data["data"]["sys_code"]) == 0
+
+        # 特殊处理赠送卡片
+        if "13333" in data and type(data["13333"]) is dict and "ret" in data["13333"]:
+            success = int(data["13333"]["ret"]) == 0
+
     except Exception as e:
         logger.error("is_request_ok parse failed data={}, exception=\n{}".format(data, e))
 
     return success
 
 
-def jsonp2json(jsonpStr, is_normal_jsonp=True):
+def jsonp2json(jsonpStr, is_normal_jsonp=True, need_unquote=True):
     if is_normal_jsonp:
         left_idx = jsonpStr.index("(")
-        right_idx = jsonpStr.index(")")
+        right_idx = jsonpStr.rindex(")")
         jsonpStr = jsonpStr[left_idx + 1:right_idx]
         return json.loads(jsonpStr)
 
     # dnf返回的jsonp比较诡异，需要特殊处理
     left_idx = jsonpStr.index("{")
-    right_idx = jsonpStr.index("}")
+    right_idx = jsonpStr.rindex("}")
     jsonpStr = jsonpStr[left_idx + 1:right_idx]
 
     jsonRes = {}
@@ -134,7 +149,10 @@ def jsonp2json(jsonpStr, is_normal_jsonp=True):
             k, v = kv.strip().split(":")
             if v[0] == "'":
                 v = v[1:-1]  # 去除前后的''
-            jsonRes[k] = unquote_plus(v)
+            if need_unquote:
+                jsonRes[k] = unquote_plus(v)
+            else:
+                jsonRes[k] = v
         except:
             pass
 

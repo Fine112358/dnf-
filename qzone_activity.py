@@ -1,6 +1,6 @@
+import datetime
 import json
 import random
-import datetime
 
 import requests
 
@@ -9,6 +9,7 @@ from dao import RoleInfo, DnfWarriorsCallInfo
 from log import logger, color
 from network import process_result, try_request
 from qq_login import LoginResult
+from setting import *
 from sign import getACSRFTokenForAMS
 from urls import Urls
 from util import uin2qq
@@ -34,6 +35,7 @@ class QzoneActivity:
         self.lr = lr
 
         self.cfg = djc_helper.cfg  # type: AccountConfig
+        self.zzconfig = djc_helper.zzconfig  # type: ArkLotteryZzConfig
 
         self.g_tk = getACSRFTokenForAMS(lr.p_skey)
         self.urls = Urls()
@@ -52,9 +54,10 @@ class QzoneActivity:
             logger.warning("未在道聚城绑定【地下城与勇士】的角色信息，请前往道聚城app进行绑定，否则每日登录游戏和幸运勇士的增加抽卡次数将无法成功进行。")
 
         # 增加次数
-        self.do_ark_lottery("fcg_qzact_present", "增加抽卡次数-每日登陆页面", 25970)
-        self.do_ark_lottery("v2/fcg_yvip_game_pull_flow", "增加抽卡次数-每日登陆游戏", 25968, query="0", act_name="act_dnf_ark9")
-        self.do_ark_lottery("fcg_qzact_present", "增加抽卡次数-每日分享", 25938)
+        self.do_ark_lottery("fcg_qzact_present", "增加抽卡次数-每日登陆页面（本次似乎没启用这个，所以会提示没资格）", self.zzconfig.rules.loginPage)
+        self.do_ark_lottery("v2/fcg_yvip_game_pull_flow", "增加抽卡次数-每日登陆游戏", self.zzconfig.rules.login, query="0", act_name=self.zzconfig.loginActId)
+        self.do_ark_lottery("fcg_qzact_present", "增加抽卡次数-每日分享", self.zzconfig.rules.share)
+        self.do_ark_lottery("fcg_qzact_present", "增加抽卡次数-每日观看直播", self.zzconfig.rules.video)
 
         # 幸运勇士
         server_id, roleid = "", ""
@@ -69,37 +72,43 @@ class QzoneActivity:
                 cfg = self.cfg.ark_lottery
                 server_id, roleid = cfg.lucky_dnf_server_id, cfg.lucky_dnf_role_id
 
-        self.do_ark_lottery("v2/fcg_yvip_game_pull_flow", "增加抽卡次数-幸运勇士", 25969, query="0", act_name="act_dnf_xinyun3",
+        self.do_ark_lottery("v2/fcg_yvip_game_pull_flow", "增加抽卡次数-幸运勇士", self.zzconfig.rules.imback, query="0", act_name=self.zzconfig.backActId,
                             area=server_id, partition=server_id, roleid=roleid)
 
         # 抽卡
         count = self.remaining_lottery_times()
         logger.info("上述操作完毕后，最新抽卡次数为{}，将全部用来抽卡".format(count))
         for idx in range(count):
-            self.do_ark_lottery("fcg_qzact_lottery", "抽卡-第{}次".format(idx + 1), "25940")
+            self.do_ark_lottery("fcg_qzact_lottery", "抽卡-第{}次".format(idx + 1), self.zzconfig.rules.lottery)
 
         # # 领取集卡奖励
-        if len(self.cfg.ark_lottery.take_awards) != 0:
-            for award in self.cfg.ark_lottery.take_awards:
+        if self.cfg.ark_lottery.need_take_awards:
+            take_awards = parse_prize_list(self.zzconfig)
+
+            for award in take_awards:
                 for idx in range(award.count):
                     api = "fcg_receive_reward"
-                    if int(award.ruleid) == 25939:
+                    if int(award.ruleid) == self.zzconfig.prizeGroups.group4.rule:
                         # 至尊礼包的接口与其他奖励接口不一样
                         api = "fcg_prize_lottery"
-                    self.do_ark_lottery(api, award.name, award.ruleid, gameid="dnf")
+                    self.do_ark_lottery(api, award.name, award.ruleid, gameid=self.zzconfig.gameid)
         else:
-            logger.warning("未设置领取集卡礼包奖励，也许是小号，请记得定期手动登录小号来给大号赠送缺失的卡")
+            logger.warning("未配置领取集卡礼包奖励，如果账号【{}】不是小号的话，建议去配置文件打开领取功能【need_take_awards】~".format(self.cfg.name))
 
         # 消耗卡片来抽奖
         self.try_lottery_using_cards()
 
     def try_lottery_using_cards(self, print_warning=True):
-        if self.cfg.ark_lottery.cost_all_cards_and_do_lottery:
+        if self.enable_cost_all_cards_and_do_lottery():
+            if print_warning: logger.warning(color("fg_bold_cyan") + "已开启抽卡活动({})消耗所有卡片来抽奖的功能，若尚未兑换完所有奖励，不建议开启这个功能".format(self.zzconfig.actid))
             card_counts = self.get_card_counts()
             for name, count in card_counts.items():
                 self.lottery_using_cards(name, count)
         else:
-            if print_warning: logger.warning(color("fg_bold_cyan") + "尚未开启消耗所有卡片来抽奖功能，建议所有礼包都兑换完成后开启该功能，从而充分利用卡片")
+            if print_warning: logger.warning(color("fg_bold_cyan") + "尚未开启抽卡活动({})消耗所有卡片来抽奖的功能，建议所有礼包都兑换完成后开启该功能，从而充分利用卡片。".format(self.zzconfig.actid))
+
+    def enable_cost_all_cards_and_do_lottery(self):
+        return self.cfg.ark_lottery.act_id_to_cost_all_cards_and_do_lottery.get(self.zzconfig.actid, False)
 
     def lottery_using_cards(self, card_name, count=1):
         if count <= 0:
@@ -107,18 +116,14 @@ class QzoneActivity:
 
         logger.info("尝试消耗{}张卡片【{}】来进行抽奖".format(count, card_name))
 
-        card_name_to_ruleid = {
-            "多人配合新挑战": "25961", "丰富机制闯难关": "25960", "新剧情视听盛宴": "25959", "单人成团战不停": "25958",
-            "回归奖励大升级": "25957", "秒升Lv96刷深渊": "25956", "灿烂自选回归领": "25955", "告别酱油变大佬": "25954",
-            "单人爽刷新玩法": "25953", "独立成团打副本": "25952", "海量福利金秋享": "25951", "超强奖励等你拿": "25950",
-        }
-        ruleid = card_name_to_ruleid[card_name]
+        card_info_map = parse_card_group_info_map(self.zzconfig)
+        ruleid = card_info_map[card_name].lotterySwitchId
         for idx in range(count):
             # 消耗卡片获得抽奖资格
             self.do_ark_lottery("fcg_qzact_present", "增加抽奖次数-消耗卡片({})".format(card_name), ruleid)
 
             # 抽奖
-            self.do_ark_lottery("fcg_prize_lottery", "进行卡片抽奖", "25949", gameid="dnf")
+            self.do_ark_lottery("fcg_prize_lottery", "进行卡片抽奖", self.zzconfig.rules.lotteryByCard, gameid=self.zzconfig.gameid)
 
     def fetch_lottery_data(self):
         self.lottery_data = self.fetch_data(self.urls.ark_lottery_page)
@@ -126,7 +131,7 @@ class QzoneActivity:
     def remaining_lottery_times(self):
         self.fetch_lottery_data()
 
-        return self.lottery_data["actCount"]["rule"]["25940"]["count"][0]['left']
+        return self.lottery_data["actCount"]["rule"][str(self.zzconfig.rules.lottery)]["count"][0]['left']
 
     def get_card_counts(self):
         self.fetch_lottery_data()
@@ -162,8 +167,7 @@ class QzoneActivity:
         return prize_counts
 
     def do_ark_lottery(self, api, ctx, ruleid, query="", act_name="", gameid="", area="", partition="", roleid="", pretty=False, print_res=True):
-        # 活动id为self.lottery_data["zzconfig"]["actid"]=3886
-        return self.do_qzone_activity(3886, api, ctx, ruleid, query, act_name, gameid, area, partition, roleid, pretty, print_res)
+        return self.do_qzone_activity(self.zzconfig.actid, api, ctx, ruleid, query, act_name, gameid, area, partition, roleid, pretty, print_res)
 
     # ----------------- 阿拉德勇士征集令 ----------------------
 
@@ -198,7 +202,7 @@ class QzoneActivity:
         remaining_lottery_times = self.dnf_warriors_call_data.boss.left.get(str(zz.actbossZige.lottery), 0)
         logger.info("剩余抽奖次数为{}次\n(ps: 每周通关两次希洛克可分别获取2次抽奖次数；每天通关一次深渊，可以获得1次抽奖次数)".format(remaining_lottery_times))
         for i in range(remaining_lottery_times):
-            lottery("抽奖-第{}次".format(i+1))
+            lottery("抽奖-第{}次".format(i + 1))
 
         logger.warning("只处理大家都能领到的普发奖励，像周赛决赛之类的奖励请自行领取")
         getPrize("1. 智慧的引导礼包", rule.pfPrize1)
@@ -246,8 +250,7 @@ class QzoneActivity:
 
     def fetch_dnf_warriors_call_data(self):
         self.dnf_warriors_call_raw_data = self.fetch_data(self.urls.dnf_warriors_call_page)
-        self.dnf_warriors_call_data = DnfWarriorsCallInfo()
-        self.dnf_warriors_call_data.auto_update_config(self.dnf_warriors_call_raw_data)
+        self.dnf_warriors_call_data = DnfWarriorsCallInfo().auto_update_config(self.dnf_warriors_call_raw_data)
 
     def do_dnf_warriors_call(self, api, ctx, ruleid, query="", act_name="", gameid="", area="", partition="", roleid="", pretty=False, print_res=True):
         # 活动id为self.dnf_warriors_call_data.zz.actid=4117
@@ -256,12 +259,17 @@ class QzoneActivity:
     # ----------------- QQ空间活动通用逻辑 ----------------------
 
     def fetch_data(self, activity_page_url):
-        request_fn = lambda: requests.post(activity_page_url, headers=self.headers, timeout=self.djc_helper.common_cfg.http_timeout)
-        res = try_request(request_fn, self.djc_helper.common_cfg.retry)
-        page_html = res.text
-
         data_prefix = "window.syncData = "
         data_suffix = ";\n</script>"
+
+        def request_fn():
+            return requests.post(activity_page_url, headers=self.headers, timeout=self.djc_helper.common_cfg.http_timeout)
+
+        def check_fn(response: requests.Response):
+            return data_prefix not in response.text
+
+        res = try_request(request_fn, self.djc_helper.common_cfg.retry)
+        page_html = res.text
 
         prefix_idx = page_html.index(data_prefix) + len(data_prefix)
         suffix_idx = page_html.index(data_suffix, prefix_idx)

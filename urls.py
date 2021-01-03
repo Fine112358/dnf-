@@ -62,17 +62,33 @@ class Urls:
         self.iActivityId_xinyue_battle_ground = "166962"  # DNF地下城与勇士心悦特权专区
         self.iActivityId_xinyue_sailiyam = "339263"  # DNF进击吧赛利亚
         self.iActivityId_wegame_guoqing = "331515"  # wegame国庆活动【秋风送爽关怀常伴】
-        self.iActivityId_dnf_922 = "331393"  # DNF-922渠道活动合集
-        self.iActivityId_dnf_shanguang = "328404"  # 2020DNF闪光杯返场赛
+        self.iActivityId_dnf_1224 = "353266"  # DNF-1224渠道活动合集
+        self.iActivityId_dnf_shanguang = "348607"  # DNF闪光杯第三期
         self.iActivityId_dnf_female_mage_awaken = "336524"  # 10月女法师三觉活动
         self.iActivityId_dnf_rank = "347456"  # DNF-2020年KOL榜单建设送黑钻
+        self.iActivityId_dnf_carnival = "346329"  # DNF嘉年华页面主页面签到-pc
+        self.iActivityId_dnf_carnival_live = "346830"  # DNF嘉年华直播页面-PC
+        self.iActivityId_dnf_dianzan = "348845"  # DNF2020共创投票领礼包需求
+        self.iActivityId_dnf_welfare = "215651"  # DNF福利中心兑换
+        self.iActivityId_dnf_welfare_login_gifts = "348623"  # DNF福利中心-登陆游戏领福利
+        self.iActivityId_xinyue_financing = "126962" # 心悦app理财礼卡
+        self.iActivityId_dnf_drift = "348890" # dnf漂流瓶
+        self.iActivityId_majieluo = "350347" # DNF马杰洛的规划第二期
+        self.iActivityId_dnf_helper_christmas = "350252" # dnf助手双旦活动
+        self.iActivityId_warm_winter = "347445" # 暖冬有礼
 
         # amesvr通用活动系统配置
         # 需要手动额外传入参数：sMiloTag, sServiceDepartment, sServiceType
         self.amesvr = "https://{amesvr_host}/ams/ame/amesvr?ameVersion=0.3&sSDID={sSDID}&sMiloTag={sMiloTag}&sServiceType={sServiceType}&iActivityId={iActivityId}&sServiceDepartment={sServiceDepartment}&isXhrPost=true"
         # &sArea={sArea}&sRoleId={sRoleId}&uin={uin}&userId={userId}&token={token}&sRoleName={sRoleName}&serverId={serverId}&skey={skey}&nickName={nickName}
         # 需要手动额外传入参数：iFlowId/package_id/lqlevel/teamid, sServiceDepartment/sServiceType, sArea/serverId/nickName/sRoleId/sRoleName/uin/skey/userId/token, date
-        self.amesvr_raw_data = "iActivityId={iActivityId}&g_tk={g_tk}&iFlowId={iFlowId}&package_id={package_id}&xhrPostKey=xhr_{millseconds}&eas_refer=http%3A%2F%2Fnoreferrer%2F%3Freqid%3D{uuid}%26version%3D23&lqlevel={lqlevel}&teamid={teamid}&weekDay={weekDay}&e_code=0&g_code=0&eas_url={eas_url}&xhr=1&sServiceDepartment={sServiceDepartment}&sServiceType={sServiceType}&sArea={sArea}&sRoleId={sRoleId}&uin={uin}&userId={userId}&token={token}&sRoleName={sRoleName}&serverId={serverId}&areaId={areaId}&skey={skey}&nickName={nickName}&date={date}&dzid={dzid}&page={page}&iPackageId={iPackageId}"
+        self.amesvr_raw_data = "iActivityId={iActivityId}&g_tk={g_tk}&iFlowId={iFlowId}&package_id={package_id}&xhrPostKey=xhr_{millseconds}&eas_refer=http%3A%2F%2Fnoreferrer%2F%3Freqid%3D{uuid}%26version%3D23&lqlevel={lqlevel}&teamid={teamid}&weekDay={weekDay}&e_code=0&g_code=0&eas_url={eas_url}&xhr=1&sServiceDepartment={sServiceDepartment}&sServiceType={sServiceType}&sArea={sArea}&sRoleId={sRoleId}&uin={uin}&userId={userId}&token={token}&sRoleName={sRoleName}&serverId={serverId}&areaId={areaId}&skey={skey}&nickName={nickName}&date={date}&dzid={dzid}&page={page}&iPackageId={iPackageId}&plat={plat}&extraStr={extraStr}&sContent={sContent}&sPartition={sPartition}&sAreaName={sAreaName}&md5str={md5str}&ams_checkparam={ams_checkparam}&checkparam={checkparam}&type={type}&moduleId={moduleId}&giftId={giftId}&acceptId={acceptId}&invitee={invitee}&giftNum={giftNum}&sendQQ={sendQQ}&receiver={receiver}&receiverName={receiverName}&inviterName={inviterName}"
+
+        # DNF共创投票
+        # 查询作品列表，额外参数：iCategory1、iCategory2、page、pagesize
+        self.query_dianzan_contents = "https://apps.game.qq.com/cms/index.php?r={rand}&callback=jQuery191015906433451135138_{millseconds}&serviceType=dnf&sAction=showList&sModel=Ugc&actId=2&iCategory1={iCategory1}&iCategory2={iCategory2}&order=0&page={page}&pagesize={pagesize}&_=1608559950347"
+        # 点赞，额外参数：iContentId
+        self.dianzan = "https://apps.game.qq.com/cms/index.php?r={rand}&callback=jQuery19105114998760002998_{millseconds}&serviceType=dnf&actId=2&sModel=Zan&sAction=zanContent&iContentId={iContentId}&_={millseconds}"
 
         # 每月黑钻等级礼包
         self.heizuan_gift = "https://dnf.game.qq.com/mtask/lottery/?r={rand}&serviceType=dnf&channelId=1&actIdList=44c24e"
@@ -88,11 +104,11 @@ class Urls:
         self.qzone_activity_raw_data = "gameid={gameid}&actid={actid}&ruleid={ruleid}&area={area}&partition={partition}&roleid={roleid}&platform=pc&query={query}&act_name={act_name}&format=json&uin={uin}"
 
         # 抽卡相关
-        self.ark_lottery_page = "https://act.qzone.qq.com/vip/2019/xcardv3?zz=4&verifyid=qqvipdnf9"
-        # 查询次数信息：参数：to_qq
-        self.ark_lottery_query_left_times = 'https://proxy.vac.qq.com/cgi-bin/srfentry.fcgi?data={{"13320":{{"uin":{to_qq},"actName":"dnf-ark9"}}}}&t={rand}&g_tk={g_tk}'
-        # 赠送卡片：参数：cardId，from_qq，to_qq
-        self.ark_lottery_send_card = 'https://proxy.vac.qq.com/cgi-bin/srfentry.fcgi?data={{"13333":{{"cardId":{cardId},"fromUin":{from_qq},"toUin":{to_qq},"actName":"dnf-ark9"}}}}&t={rand}&g_tk={g_tk}'
+        self.ark_lottery_page = "https://act.qzone.qq.com/vip/2019/xcardv3?zz=5&verifyid=qqvipdnf10"
+        # 查询次数信息：参数：to_qq, actName
+        self.ark_lottery_query_left_times = 'https://proxy.vac.qq.com/cgi-bin/srfentry.fcgi?data={{"13320":{{"uin":{to_qq},"actName":"{actName}"}}}}&t={rand}&g_tk={g_tk}'
+        # 赠送卡片：参数：cardId，from_qq，to_qq, actName
+        self.ark_lottery_send_card = 'https://proxy.vac.qq.com/cgi-bin/srfentry.fcgi?data={{"13333":{{"cardId":{cardId},"fromUin":{from_qq},"toUin":{to_qq},"actName":"{actName}"}}}}&t={rand}&g_tk={g_tk}'
 
         # 阿拉德勇士征集令
         self.dnf_warriors_call_page = "https://act.qzone.qq.com/vip/2020/dnf1126"

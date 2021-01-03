@@ -1,6 +1,7 @@
 import datetime
 import logging
 import multiprocessing
+import os
 import pathlib
 from sys import exit
 
@@ -9,12 +10,13 @@ import colorlog
 ###########################################################
 #                         logging                         #
 ###########################################################
+asciiReset = colorlog.escape_codes['reset']
+
 fileFmtStr = "%(asctime)s [%(name)s] %(funcName)s:%(lineno)d %(levelname)-5.5s: %(message)s"
-consoleFmtStr = "{}%(asctime)s {}[%(name)s] {}%(funcName)s:%(lineno)-3d {}%(levelname)-5.5s: %(message)s".format(
-    "%(purple)s",
-    "%(purple)s",
-    "%(purple)s",
-    "%(log_color)s",
+consoleFmtStr = "{}%(asctime)s{} {}%(funcName)s:%(lineno)-3d{} {}%(levelname)-5.5s: %(message)s{}".format(
+    "%(bold_purple)s", asciiReset,
+    "%(purple)s", asciiReset,
+    "%(log_color)s", asciiReset,
 )
 
 logger = logging.getLogger()
@@ -26,15 +28,23 @@ try:
     pathlib.Path(log_directory).mkdir(parents=True, exist_ok=True)
 except PermissionError as err:
     print("创建日志目录logs失败，请确认是否限制了基础的运行权限")
+    os.system("PAUSE")
     exit(-1)
+
+
+def new_file_handler():
+    time_str = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+    newFileHandler = logging.FileHandler("{0}/{1}_{2}_{3}.log".format(log_directory, logger.name, process_name, time_str), encoding="utf-8", delay=True)
+    fileLogFormatter = logging.Formatter(fileFmtStr)
+    newFileHandler.setFormatter(fileLogFormatter)
+    newFileHandler.setLevel(logging.DEBUG)
+
+    return newFileHandler
+
 
 process_name = multiprocessing.current_process().name
 if "MainProcess" in process_name:
-    time_str = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
-    fileHandler = logging.FileHandler("{0}/{1}_{2}_{3}.log".format(log_directory, logger.name, process_name, time_str), encoding="utf-8")
-    fileLogFormatter = logging.Formatter(fileFmtStr)
-    fileHandler.setFormatter(fileLogFormatter)
-    fileHandler.setLevel(logging.DEBUG)
+    fileHandler = new_file_handler()
     logger.addHandler(fileHandler)
 
 # hack: 将底层的color暴露出来
@@ -66,14 +76,14 @@ for prefix_name in PREFIXES:
 
 consoleLogFormatter = colorlog.ColoredFormatter(
     consoleFmtStr,
-    datefmt=None,
+    datefmt="%H:%M:%S",
     reset=True,
     log_colors={**color_names, **{
         'DEBUG': 'cyan',
         'INFO': 'green',
         'WARNING': 'yellow',
-        'ERROR': 'red',
-        'CRITICAL': 'red',
+        'ERROR': 'fg_bold_red',
+        'CRITICAL': 'fg_bold_red',
     }},
     secondary_log_colors={},
     style='%'

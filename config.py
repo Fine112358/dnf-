@@ -1,6 +1,6 @@
 import re
 import uuid
-from typing import List
+from typing import List, Dict
 
 import toml
 
@@ -40,7 +40,7 @@ class ExchangeItemConfig(ConfigInterface):
     def __init__(self):
         self.iGoodsId = "753"
         self.sGoodsName = "装备品级调整箱（5个）"
-        self.count = 2
+        self.count = 0
 
 
 class DnfHelperChronicleExchangeItemConfig(ConfigInterface):
@@ -71,31 +71,36 @@ class ArkLotteryAwardConfig(ConfigInterface):
         self.ruleid = 25947
         self.count = 1
 
+    def update(self, name, ruleid):
+        self.name = name
+        self.ruleid = ruleid
+
+        return self
+
 
 class ArkLotteryConfig(ConfigInterface):
     def __init__(self):
         # 用于完成幸运勇士的区服ID和角色ID，若服务器ID留空，则使用道聚城绑定的dnf角色信息
-        self.lucky_dnf_server_id = ""  # 区服id可查阅reference_data/dnf_server_list.js
+        self.lucky_dnf_server_id = ""  # 区服id可查阅reference_data/dnf_server_list.js，具体值为每一个服务器配置中的v字段，如{t: "广东三区", v: "22"}表示广东三区的区服ID为"22"
         self.lucky_dnf_role_id = ""  # 角色ID，不知道时可以填写区服ID，该数值留空，这样处理到抽卡的时候会用黄色字体打印出来信息
-        # 是否消耗所有卡牌来抽奖（建议在兑换完所有礼包后再开启这个功能）
-        self.cost_all_cards_and_do_lottery = False
-        # 尝试领取礼包的次数：勇士归来礼包=25947，超低门槛=25948，人人可玩=25966，幸运礼包=25939
-        self.take_awards = []  # type: List[ArkLotteryAwardConfig]
+        # 是否领取礼包（建议仅大号开启这个功能）
+        self.need_take_awards = False
 
         # 是否展示在概览界面
         self.show_status = True
         # 卡牌数目使用特定的颜色
         self.show_color = ""
 
-    def auto_update_config(self, raw_config: dict):
-        super().auto_update_config(raw_config)
+        # 活动ID => 是否消耗所有卡牌来抽奖（建议在兑换完所有礼包后再开启这个功能）
+        self.act_id_to_cost_all_cards_and_do_lottery = {}  # type: Dict[int, bool]
 
-        if 'take_awards' in raw_config:
-            self.take_awards = []
-            for cfg in raw_config["take_awards"]:
-                ei = ArkLotteryAwardConfig()
-                ei.auto_update_config(cfg)
-                self.take_awards.append(ei)
+    def fields_to_fill(self):
+        return [
+            ('take_awards', ArkLotteryAwardConfig),
+        ]
+
+    def on_config_update(self, raw_config: dict):
+        self.act_id_to_cost_all_cards_and_do_lottery = {int(k): bool(v) for k, v in self.act_id_to_cost_all_cards_and_do_lottery.items()}
 
 
 class DnfHelperInfoConfig(ConfigInterface):
@@ -119,15 +124,10 @@ class DnfHelperInfoConfig(ConfigInterface):
         # dnf助手编年史兑换道具信息，其他奖励信息可查阅reference_data/dnf助手编年史活动_可兑换奖励列表.json
         self.chronicle_exchange_items = []  # type: List[DnfHelperChronicleExchangeItemConfig]
 
-    def auto_update_config(self, raw_config: dict):
-        super().auto_update_config(raw_config)
-
-        if 'chronicle_exchange_items' in raw_config:
-            self.chronicle_exchange_items = []
-            for cfg in raw_config["chronicle_exchange_items"]:
-                ei = DnfHelperChronicleExchangeItemConfig()
-                ei.auto_update_config(cfg)
-                self.chronicle_exchange_items.append(ei)
+    def fields_to_fill(self):
+        return [
+            ('chronicle_exchange_items', DnfHelperChronicleExchangeItemConfig),
+        ]
 
 
 class HelloVoiceInfoConfig(ConfigInterface):
@@ -139,8 +139,17 @@ class HelloVoiceInfoConfig(ConfigInterface):
 
 class FunctionSwitchesConfig(ConfigInterface):
     def __init__(self):
+        # ------------ 全局禁用开关 ------------
+        # 是否禁用各种活动，供小号使用，这样新增的各种活动都将被禁用
+        # 例外情况：道聚城、许愿、心悦特权专区、集卡这四个活动不受该配置项影响
+        # 如果想要单独设置各个活动的开关，请不要设置这个配置项，否则各个新活动都会被禁用
+        self.disable_most_activities = False
+
+        # ------------ 普通skey（需要登录 炎炎夏日 活动页面 获取） ------------
         # 是否领取道聚城
         self.get_djc = True
+        # 是否启用许愿功能，用于完成《有理想》。目前仅限安卓版本道聚城上绑定王者荣耀时可使用
+        self.make_wish = True
         # 是否领取心悦特权专区
         self.get_xinyue = True
         # 是否领取腾讯游戏信用相关礼包
@@ -151,45 +160,73 @@ class FunctionSwitchesConfig(ConfigInterface):
         self.get_xinyue_sailiyam = True
         # 是否领取wegame国庆活动
         self.get_wegame_guoqing = True
-        # 是否领取阿拉德集合站活动
-        self.get_dnf_922 = True
-        # 是否领取2020DNF闪光杯返场赛活动
+        # 是否领取史诗之路来袭活动合集活动
+        self.get_dnf_1224 = True
+        # 是否领取DNF闪光杯第三期活动
         self.get_dnf_shanguang = True
         # 是否领取qq视频活动
         self.get_qq_video = True
         # 是否领取10月女法师三觉活动
         self.get_dnf_female_mage_awaken = True
-        # 是否领取管家蚊子腿活动
-        self.get_guanjia = True
-        # 是否启用许愿功能，用于完成《有理想》。目前仅限安卓版本道聚城上绑定王者荣耀时可使用
-        self.make_wish = True
+        # 是否领取DNF助手排行榜活动，额外需要助手userId和token
+        self.get_dnf_rank = True
+        # 是否领取dnf助手编年史活动，额外需要助手userId
+        self.get_dnf_helper_chronicle = True
+        # 是否启用hello语音奖励兑换功能，额外需要hello语音的用户ID
+        self.get_hello_voice = True
+        # 是否领取2020DNF嘉年华页面主页面签到活动
+        self.get_dnf_carnival = True
+        # 是否领取2020DNF嘉年华直播活动
+        self.get_dnf_carnival_live = True
+        # 是否DNF共创投票
+        self.get_dnf_dianzan = True
+        # 是否领取DNF福利中心兑换
+        self.get_dnf_welfare = True
+        # 是否领取心悦app理财礼卡
+        self.get_xinyue_financing = True
+        # 是否领取dnf漂流瓶
+        self.get_dnf_drift = True
+        # 是否领取DNF马杰洛的规划第二期
+        self.get_majieluo = True
+        # 是否领取dnf助手双旦活动
+        self.get_dnf_helper_christmas = True
+        # 是否领取暖冬好礼活动
+        self.get_warm_winter = True
+
+        # ------------ QQ空间pskey（需要登录 QQ空间 获取） ------------
         # 是否启用集卡功能
         self.get_ark_lottery = True
-        # 是否领取DNF助手排行榜活动
-        self.get_dnf_rank = True
         # 是否启用阿拉德勇士征集令活动
         self.get_dnf_warriors_call = True
-        # 是否领取dnf助手编年史活动
-        self.get_dnf_helper_chronicle = True
-        # 是否启用hello语音奖励兑换功能
-        self.get_hello_voice = True
+
+        # ------------ 安全管家pskey（需要登录 安全管家 获取） ------------
+        # 是否领取管家蚊子腿活动
+        self.get_guanjia = True
 
 
 class AccountConfig(ConfigInterface):
     def __init__(self):
         # 是否启用该账号
         self.enable = True
+        # 是否处于安全模式，也就是登录的时候需要滑动验证码或者发送短信
+        self.in_safe_mode = False
         # 账号名称，仅用于区分不同账号
-        self.name = "默认账号"
-        # 测试模式，若开启，则一些实验性功能将会启用
-        self.test_mode = False
+        self.name = "默认账号_不同账号请取不同名字"
         # 登录模式
         # by_hand：      手动登录，在skey无效的情况下会弹出活动界面，自行登录后将cookie中uin和skey提取到下面的配置处
         # qr_login：     二维码登录，每次运行时若本地缓存的.skey文件中存储的skey过期了，则弹出登录页面，扫描二维码后将自动更新skey，进行后续操作
         # auto_login：   自动登录，每次运行若本地缓存的.skey文件中存储的skey过期了，根据填写的账密信息，自动登录来获取uin和skey，无需手动操作
         self.login_mode = "by_hand"
         # 是否无法在道聚城绑定dnf，比如被封禁或者是朋友的QQ（主要用于小号，被风控不能注册dnf账号，但是不影响用来当抽卡等活动的工具人）
-        self.cannot_band_dnf = False
+        self.cannot_bind_dnf = False
+        # 心悦app理财礼卡活动选择的理财卡类型。最多生效两个~。可选项分别为：体验版周卡、升级版周卡、体验版月卡、升级版月卡。推荐最后俩月卡，收益最高
+        # 示例：xinyue_financing_card_names = ["升级版月卡", "体验版月卡"]
+        # 如果G分不够多，也可以尝试填写["升级版月卡", "体验版月卡", "升级版周卡", "体验版周卡"]，这样会依次尝试各个方案，确保能用当前能购买的最高等级礼卡来做活动
+        self.xinyue_financing_card_names = []
+        # 漂流瓶每日邀请列表，最多可填8个（！！！由于真的会发送消息给对方，强烈建议只在其中填写自己的小号！！！）
+        self.drift_send_qq_list = []  # type: List[str]
+        # 马杰洛黑钻送好友邀请列表（！！！由于真的会发送消息给对方，强烈建议只在其中填写自己的小号！！！）
+        self.majieluo_receiver_qq_list = []  # type: List[str]
         # 各功能开关
         self.function_switches = FunctionSwitchesConfig()
         # 腾讯系网页登录通用账号凭据与token
@@ -209,33 +246,18 @@ class AccountConfig(ConfigInterface):
         # hello语音相关信息
         self.hello_voice = HelloVoiceInfoConfig()
 
-    def auto_update_config(self, raw_config: dict):
-        super().auto_update_config(raw_config)
-
-        if 'exchange_items' in raw_config:
-            self.exchange_items = []
-            for cfg in raw_config["exchange_items"]:
-                ei = ExchangeItemConfig()
-                ei.auto_update_config(cfg)
-                self.exchange_items.append(ei)
-
-        if 'xinyue_operations' in raw_config:
-            self.xinyue_operations = []
-            for cfg in raw_config["xinyue_operations"]:
-                ei = XinYueOperationConfig()
-                ei.auto_update_config(cfg)
-                self.xinyue_operations.append(ei)
-
-        if 'wegame_guoqing_exchange_items' in raw_config:
-            self.wegame_guoqing_exchange_items = []
-            for cfg in raw_config["wegame_guoqing_exchange_items"]:
-                ei = WegameGuoqingExchangeItemConfig()
-                ei.auto_update_config(cfg)
-                self.wegame_guoqing_exchange_items.append(ei)
-
-        self.on_config_update(raw_config)
+    def fields_to_fill(self):
+        return [
+            ('exchange_items', ExchangeItemConfig),
+            ('xinyue_operations', XinYueOperationConfig),
+            ('wegame_guoqing_exchange_items', WegameGuoqingExchangeItemConfig),
+        ]
 
     def is_enabled(self):
+        if self.in_safe_mode and not config().common.enable_in_safe_mode_accounts:
+            # 若账号处于安全模式，且当前不启用处于安全模式的账号，则视为未启用当前账号
+            return False
+
         return self.enable
 
     def on_config_update(self, raw_config: dict):
@@ -244,6 +266,9 @@ class AccountConfig(ConfigInterface):
         self.rsa_public_key_file = "public_key.der"
 
         self.updateUinSkey(self.account_info.uin, self.account_info.skey)
+
+        self.drift_send_qq_list = [str(qq) for qq in self.drift_send_qq_list]
+        self.majieluo_receiver_qq_list = [str(qq) for qq in self.majieluo_receiver_qq_list]
 
     def updateUinSkey(self, uin, skey):
         self.account_info.uin = uin
@@ -292,11 +317,11 @@ class LoginConfig(ConfigInterface):
 class RetryConfig(ConfigInterface):
     def __init__(self):
         # 每次兑换请求之间的间隔时间（秒），避免请求过快而报错，目前测试1s正好不会报错~
-        self.request_wait_time = 1
+        self.request_wait_time = 2
         # 当提示【"msg": "系统繁忙，请稍候再试。", "ret": "-9905"】时的最大重试次数
         self.max_retry_count = 3
         # 上述情况下的重试间隔时间（秒）
-        self.retry_wait_time = 1
+        self.retry_wait_time = 5
 
 
 class XinYueConfig(ConfigInterface):
@@ -315,6 +340,11 @@ class FixedTeamConfig(ConfigInterface):
         self.id = "1"
         # 固定队成员，必须是三个，则必须都配置在本地的账号列表中了，否则将报错，不生效
         self.members = ["小队第一个账号的QQ号", "小队第二个账号的QQ号", "小队第三个账号的QQ号"]
+
+    def on_config_update(self, raw_config: dict):
+        # 由于经常会有人填写成数字，如[123, 456]，导致后面从各个dict中取值时出错（dict中都默认QQ为str类型，若传入int类型，会取不到对应的值）
+        # 所以这里做下兼容，强制转换为str
+        self.members = [str(qq) for qq in self.members]
 
     def check(self) -> bool:
         if len(self.members) != 3:
@@ -337,8 +367,12 @@ class CommonConfig(ConfigInterface):
     }
 
     def __init__(self):
+        # 测试模式，若开启，则一些实验性功能将会启用
+        self.test_mode = False
         # 测试用开关，将仅运行首个账号配置
         self._debug_run_first_only = False
+        # 是否启用处于安全模式的账号
+        self.enable_in_safe_mode_accounts = False
         # 是否展示小助手的累积使用情况
         self._show_usage = False
         # 是否强制使用打包附带的便携版chrome
@@ -355,10 +389,13 @@ class CommonConfig(ConfigInterface):
         self.check_update_on_start = True
         self.readme_page = "https://github.com/fzls/djc_helper/blob/master/README.MD"
         self.changelog_page = "https://github.com/fzls/djc_helper/blob/master/CHANGELOG.MD"
-        # 正式模式运行成功时是否弹出打赏图片
-        self.show_support_pic = True
-        # 自动赠送卡片的目标QQ数组，这些QQ必须是配置的账号之一，若配置则会在程序结束时尝试从其他小号赠送最需要的卡片给这些账号，若不配置则不启用。
-        self.auto_send_card_target_qqs = []
+        # 是否启用自动更新功能
+        self.auto_update_on_start = True
+        # 抽卡汇总展示色彩
+        self.ark_lottery_summary_show_color = ""
+        # 自动赠送卡片的目标QQ数组，这些QQ必须是配置的账号之一，若配置则会在程序结束时尝试从其他小号赠送卡片给这些账号，且这些账号不会赠送卡片给其他账号，若不配置则不启用。
+        # 赠送策略为：如果该QQ仍有可兑换奖励，将赠送目标QQ最需要的卡片；否则将赠送目标QQ其他QQ最富余的卡片
+        self.auto_send_card_target_qqs = []  # type: List[str]
         # 登录各个阶段的最大等待时间，单位秒（仅二维码登录和自动登录需要配置，数值越大容错性越好）
         self.login = LoginConfig()
         # 各种操作的通用重试配置
@@ -368,19 +405,20 @@ class CommonConfig(ConfigInterface):
         # 固定队相关配置。用于本地三个号来组成一个固定队伍，完成心悦任务。
         self.fixed_teams = []  # type: List[FixedTeamConfig]
         # 赛利亚活动拜访目标QQ列表
-        self.sailiyam_visit_target_qqs = []
+        self.sailiyam_visit_target_qqs = []  # type: List[str]
 
-    def auto_update_config(self, raw_config: dict):
-        super().auto_update_config(raw_config)
+    def fields_to_fill(self):
+        return [
+            ('fixed_teams', FixedTeamConfig),
+        ]
 
-        if 'fixed_teams' in raw_config:
-            self.fixed_teams = []
-            for cfg in raw_config["fixed_teams"]:
-                ei = FixedTeamConfig()
-                ei.auto_update_config(cfg)
-                self.fixed_teams.append(ei)
-
+    def on_config_update(self, raw_config: dict):
         consoleHandler.setLevel(self.log_level_map[self.log_level])
+
+        # 由于经常会有人填写成数字的列表，如[123, 456]，导致后面从各个dict中取值时出错（dict中都默认QQ为str类型，若传入int类型，会取不到对应的值）
+        # 所以这里做下兼容，强制转换为str
+        self.auto_send_card_target_qqs = [str(qq) for qq in self.auto_send_card_target_qqs]
+        self.sailiyam_visit_target_qqs = [str(qq) for qq in self.sailiyam_visit_target_qqs]
 
 
 class Config(ConfigInterface):
@@ -390,16 +428,12 @@ class Config(ConfigInterface):
         # 兑换道具信息
         self.account_configs = []  # type: List[AccountConfig]
 
-    def auto_update_config(self, raw_config: dict):
-        super().auto_update_config(raw_config)
+    def fields_to_fill(self):
+        return [
+            ('account_configs', AccountConfig),
+        ]
 
-        if 'account_configs' in raw_config:
-            self.account_configs = []
-            for cfg in raw_config["account_configs"]:
-                ei = AccountConfig()
-                ei.auto_update_config(cfg)
-                self.account_configs.append(ei)
-
+    def on_config_update(self, raw_config: dict):
         if not self.check():
             logger.error("配置有误，请根据提示信息修改")
             exit(-1)

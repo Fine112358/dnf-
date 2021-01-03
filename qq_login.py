@@ -148,22 +148,24 @@ class QQLogin():
             try:
                 self.login_mode = login_mode
                 login_fn = self._login_real
+                suffix = ""
                 if login_mode == self.login_mode_xinyue:
                     login_fn = self._login_xinyue_real
-                    login_type += "-心悦"
+                    suffix += "-心悦"
                 elif login_mode == self.login_mode_qzone:
                     login_fn = self._login_qzone
-                    login_type += "-QQ空间业务（如抽卡等需要用到）（不启用QQ空间系活动就不会触发本类型的登录）"
+                    suffix += "-QQ空间业务（如抽卡等需要用到）（不启用QQ空间系活动就不会触发本类型的登录）"
                 elif login_mode == self.login_mode_guanjia:
                     login_fn = self._login_guanjia
-                    login_type += "-电脑管家（如电脑管家蚊子腿需要用到）"
+                    suffix += "-电脑管家（如电脑管家蚊子腿需要用到）"
                 elif login_mode == self.login_mode_wegame:
                     login_fn = self._login_wegame
-                    login_type += "-wegame（获取wegame相关api需要用到）"
+                    suffix += "-wegame（获取wegame相关api需要用到）"
 
-                self.prepare_chrome(login_type)
+                ctx = login_type + suffix
+                self.prepare_chrome(ctx)
 
-                return login_fn(login_type, login_action_fn=login_action_fn, need_human_operate=need_human_operate)
+                return login_fn(ctx, login_action_fn=login_action_fn, need_human_operate=need_human_operate)
             except Exception as e:
                 logger.exception("第{}/{}次尝试登录出错，等待{}秒后重试".format(idx, self.cfg.login.max_retry_count, self.cfg.login.retry_wait_time), exc_info=e)
                 time.sleep(self.cfg.login.retry_wait_time)
@@ -180,8 +182,7 @@ class QQLogin():
             logger.info("打开活动界面")
             self.driver.get("https://dnf.qq.com/lbact/a20200716wgmhz/index.html")
 
-            logger.info("浏览器设为1936x1056")
-            self.driver.set_window_size(1936, 1056)
+            self.set_window_size()
 
             logger.info("等待登录按钮#dologin出来，确保加载完成")
             WebDriverWait(self.driver, self.cfg.login.load_page_timeout).until(expected_conditions.visibility_of_element_located((By.ID, "dologin")))
@@ -214,8 +215,7 @@ class QQLogin():
             logger.info("打开活动界面")
             self.driver.get("https://act.qzone.qq.com/")
 
-            logger.info("浏览器设为1936x1056")
-            self.driver.set_window_size(1936, 1056)
+            self.set_window_size()
 
             logger.info("等待登录按钮#dologin出来，确保加载完成")
             WebDriverWait(self.driver, self.cfg.login.load_page_timeout).until(expected_conditions.visibility_of_element_located((By.LINK_TEXT, "[登录]")))
@@ -246,10 +246,9 @@ class QQLogin():
 
         def switch_to_login_frame_fn():
             logger.info("打开活动界面")
-            self.driver.get("https://guanjia.qq.com/act/cop/202010dnf/")
+            self.driver.get("http://guanjia.qq.com/act/cop/202012dnf/")
 
-            logger.info("浏览器设为1936x1056")
-            self.driver.set_window_size(1936, 1056)
+            self.set_window_size()
 
             logger.info("等待登录按钮#dologin出来，确保加载完成")
             WebDriverWait(self.driver, self.cfg.login.load_page_timeout).until(expected_conditions.visibility_of_element_located((By.ID, "dologin")))
@@ -287,8 +286,7 @@ class QQLogin():
             logger.info("打开活动界面")
             self.driver.get("https://www.wegame.com.cn/")
 
-            logger.info("浏览器设为1936x1056")
-            self.driver.set_window_size(1936, 1056)
+            self.set_window_size()
 
             logger.info("等待登录按钮#dologin出来，确保加载完成")
             time.sleep(self.cfg.login.open_url_wait_time)
@@ -300,7 +298,6 @@ class QQLogin():
             logger.info("等待#loginIframe显示出来并切换")
             time.sleep(self.cfg.login.load_login_iframe_timeout)
             self.driver.switch_to.frame(self.driver.find_element_by_css_selector("div.widget-login-item.widget-login-item--qq > iframe"))
-
 
         def assert_login_finished_fn():
             logger.info("请等待【登录头像】可见，则说明已经登录完成了...")
@@ -322,8 +319,7 @@ class QQLogin():
             logger.info("打开活动界面")
             self.driver.get("https://xinyue.qq.com/act/a20181101rights/index.html")
 
-            logger.info("浏览器设为1936x1056")
-            self.driver.set_window_size(1936, 1056)
+            self.set_window_size()
 
             logger.info("等待#loginframe加载完毕并切换")
             WebDriverWait(self.driver, self.cfg.login.load_login_iframe_timeout).until(expected_conditions.visibility_of_element_located((By.CLASS_NAME, "loginframe")))
@@ -375,7 +371,15 @@ class QQLogin():
             login_action_fn()
 
         logger.info("等待登录完成（也就是#loginIframe#login登录框消失）")
-        WebDriverWait(self.driver, self.cfg.login.login_timeout).until(expected_conditions.invisibility_of_element_located((By.ID, "login")))
+        # 出验证码的时候，下面这个操作可能会报错 'target frame detached\n(Session info: chrome=87.0.4280.88)'
+        # 这时候等待一下好像就行了
+        for i in range(3):
+            try:
+                WebDriverWait(self.driver, self.cfg.login.login_timeout).until(expected_conditions.invisibility_of_element_located((By.ID, "login")))
+                break
+            except Exception as e:
+                logger.error("出错了，等待两秒再重试", exc_info=e)
+                time.sleep(2)
 
         logger.info("回到主iframe")
         self.driver.switch_to.default_content()
@@ -389,7 +393,7 @@ class QQLogin():
         if self.login_mode == self.login_mode_normal:
             # 普通登录额外获取腾讯视频的vqq_vuserid
             logger.info("转到qq视频界面，从而可以获取vuserid，用于腾讯视频的蚊子腿")
-            self.driver.get("https://film.qq.com/film/p/topic/dnf922/index.html")
+            self.driver.get("https://m.film.qq.com/magic-act/110254/index.html")
             for i in range(5):
                 vuserid = self.driver.get_cookie('vuserid')
                 if vuserid is not None:
@@ -397,16 +401,21 @@ class QQLogin():
                 time.sleep(1)
             self.add_cookies(self.driver.get_cookies())
         elif self.login_mode == self.login_mode_qzone:
-            logger.info("QQ空间登录类型额外访问一下征集令活动界面，然后还得刷新一遍浏览器，不然不刷新次数（什么鬼）")
-            logger.info("第一次访问，并停留5秒")
-            self.driver.get("https://act.qzone.qq.com/vip/2020/dnf1126")
-            time.sleep(5)
-            logger.info("第二次访问，并停留5秒")
-            self.driver.get("https://act.qzone.qq.com/vip/2020/dnf1126")
-            time.sleep(5)
-            logger.info("OK，理论上次数应该刷新了")
+            pass
+            # logger.info("QQ空间登录类型额外访问一下征集令活动界面，然后还得刷新一遍浏览器，不然不刷新次数（什么鬼）")
+            # logger.info("第一次访问，并停留5秒")
+            # self.driver.get("https://act.qzone.qq.com/vip/2020/dnf1126")
+            # time.sleep(5)
+            # logger.info("第二次访问，并停留5秒")
+            # self.driver.get("https://act.qzone.qq.com/vip/2020/dnf1126")
+            # time.sleep(5)
+            # logger.info("OK，理论上次数应该刷新了")
 
         return
+
+    def set_window_size(self):
+        logger.info("浏览器设为1936x1056")
+        self.driver.set_window_size(1936, 1056)
 
     def add_cookies(self, cookies):
         to_add = []
@@ -436,7 +445,7 @@ if __name__ == '__main__':
     account = cfg.account_configs[0]
     acc = account.account_info
     logger.warning("测试账号 {} 的登录情况".format(account.name))
-    lr = ql.login(acc.account, acc.password, login_mode=ql.login_mode_normal)
+    lr = ql.login(acc.account, acc.password, login_mode=ql.login_mode_guanjia)
     # lr = ql.qr_login()
     ql.print_cookie()
     print(lr)

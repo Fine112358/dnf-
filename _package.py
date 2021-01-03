@@ -8,7 +8,9 @@ from log import logger
 from version import now_version
 
 
-def package(dir_src, dir_all_release, release_dir_name, release_7z_name):
+def package(dir_src, dir_all_release, release_dir_name, release_7z_name, dir_github_action_artifact):
+    old_cwd = os.getcwd()
+
     # 需要复制的文件与目录
     files_to_copy = []
     reg_wantted_file = r'.*\.(toml|md|txt|png|docx|url)$'
@@ -26,6 +28,7 @@ def package(dir_src, dir_all_release, release_dir_name, release_7z_name):
         "public_key.der",
         "使用教程",
         "npp_portable",
+        "utils",
     ])
     files_to_copy = sorted(files_to_copy)
 
@@ -48,6 +51,19 @@ def package(dir_src, dir_all_release, release_dir_name, release_7z_name):
             logger.info("拷贝文件 {}".format(filename))
             shutil.copyfile(source, destination)
 
+    logger.info("清除utils目录下的一些内容")
+    for filename in ["logs", ".db", "auto_updater.exe"]:
+        filepath = os.path.join(dir_current_release, "utils/{}".format(filename))
+        if not os.path.exists(filepath):
+            continue
+
+        if os.path.isdir(filepath):
+            logger.info("移除目录 {}".format(filepath))
+            shutil.rmtree(filepath, ignore_errors=True)
+        else:
+            logger.info("移除文件 {}".format(filepath))
+            os.remove(filepath)
+
     # 压缩打包
     os.chdir(dir_all_release)
     logger.info("开始压缩打包")
@@ -55,11 +71,9 @@ def package(dir_src, dir_all_release, release_dir_name, release_7z_name):
     subprocess.call([path_bz, 'c', '-y', '-r', '-aoa', '-fmt:7z', '-l:9', release_7z_name, release_dir_name])
 
     # 额外备份一份最新的供github action 使用
-    logger.info("保存一份供github action使用")
-    dir_github_action_artifact = "_github_action_artifact"
-    shutil.rmtree(dir_github_action_artifact, ignore_errors=True)
-    os.mkdir(dir_github_action_artifact)
     shutil.copyfile(release_7z_name, os.path.join(dir_github_action_artifact, 'djc_helper.7z'))
+
+    os.chdir(old_cwd)
 
 
 def main():
@@ -67,8 +81,9 @@ def main():
     dir_all_release = os.path.realpath(os.path.join("releases"))
     release_dir_name = "DNF蚊子腿小助手_{version}_by风之凌殇".format(version='v' + now_version)
     release_7z_name = '{}.7z'.format(release_dir_name)
+    dir_github_action_artifact = "_github_action_artifact"
 
-    package(dir_src, dir_all_release, release_dir_name, release_7z_name)
+    package(dir_src, dir_all_release, release_dir_name, release_7z_name, dir_github_action_artifact)
 
 
 if __name__ == '__main__':
